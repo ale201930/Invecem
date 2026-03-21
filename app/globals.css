@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Colores corporativos INVECEM opcionales */
+  --primary-blue: #003366;
+  --secondary-orange: #f97316;
 }
 
 @theme inline {
@@ -10,6 +13,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-invecem-blue: var(--primary-blue);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,8 +23,50 @@
   }
 }
 
+/* --- OPTIMIZACIÓN RESPONSIVE GLOBAL --- */
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  /* Evita el scroll horizontal molesto en móviles */
+  overflow-x: hidden; 
+  width: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Contenedor estándar para todas tus páginas */
+.main-container {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* FIX PARA TABLAS: Agrégalo al div que envuelve tus tablas */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  white-space: nowrap; /* Evita que el texto se amontone */
+  -webkit-overflow-scrolling: touch; /* Scroll suave en iPhone */
+  border-radius: 8px;
+}
+
+/* Ajuste para inputs en móviles (evita zoom automático en iOS) */
+input, select, textarea {
+  font-size: 16px !important;
+}
+/* Agrégalo a globals.css si no está */
+.grid-responsive {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+/* Utilidad para ocultar cosas solo en móvil o solo en PC */
+.hide-mobile {
+  @media (max-width: 768px) {
+    display: none;
+  }
 }

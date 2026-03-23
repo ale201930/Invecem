@@ -22,6 +22,7 @@ export const viewport = {
   initialScale: 1,
 };
 
+
 export default function RootLayout({ children }) {
   return (
     <html

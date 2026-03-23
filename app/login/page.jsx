@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { auth, db } from "../../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -36,7 +36,7 @@ export default function Login() {
         administrador: "/administrador",
         inspector: "/inspector",
         "recursos humanos": "/recursos-humanos",
-        "protección fisica": "/proteccion-fisica"
+        "proteccion fisica": "/proteccion-fisica"
       };
 
       const ruta = rutas[rol];
@@ -95,85 +95,109 @@ export default function Login() {
       </div>
 
       {/* 🔥 CSS IGUAL AL MODELO */}
-      <style jsx>{`
-        .container {
-          margin: 0;
-          padding: 0;
-          font-family: "Segoe UI", sans-serif;
-          background: url("/img/fondo.jpg") no-repeat center center/cover;
-          height: 100vh;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
+     <style jsx global>{`
+  /* 🔥 RESET GLOBAL (CLAVE PARA ELIMINAR ESPACIOS) */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow-x: hidden;
+    font-family: "Segoe UI", sans-serif;
+  }
 
-        .login-box {
-          background: rgba(255, 255, 255, 0.15);
-          backdrop-filter: blur(10px);
-          padding: 40px;
-          border-radius: 18px;
-          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
-          color: #0e0d0d;
-          text-align: center;
-          width: 380px;
-        }
+  /* 🔥 CONTENEDOR PRINCIPAL */
+  .container {
+    width: 100%;
+    height: 100vh;
+    background: url("/img/fondo.jpg") no-repeat center center;
+    background-size: cover;
 
-        .login-box h2 {
-          margin-bottom: 25px;
-          font-size: 26px;
-          font-weight: 600;
-          letter-spacing: 1px;
-        }
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 
-        .input-group {
-          text-align: left;
-          margin-bottom: 20px;
-        }
+  /* 🔥 CAJA DE LOGIN (EFECTO GLASS) */
+  .login-box {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 40px;
+    border-radius: 18px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    color: #0e0d0d;
+    text-align: center;
+    width: 380px;
+  }
 
-        .input-group label {
-          display: block;
-          font-size: 14px;
-          margin-bottom: 5px;
-        }
+  /* 🔥 TÍTULO */
+  .login-box h2 {
+    margin-bottom: 25px;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
 
-        .input-group input {
-          width: 100%;
-          padding: 12px;
-          border: none;
-          border-radius: 8px;
-          outline: none;
-          background: rgba(255, 255, 255, 0.8);
-          font-size: 15px;
-        }
+  /* 🔥 INPUTS */
+  .input-group {
+    text-align: left;
+    margin-bottom: 20px;
+  }
 
-        button {
-          width: 100%;
-          padding: 12px;
-          border: none;
-          border-radius: 8px;
-          background: #00aaff;
-          color: #fff;
-          font-size: 16px;
-          cursor: pointer;
-          transition: 0.3s;
-        }
+  .input-group label {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 5px;
+  }
 
-        button:hover {
-          background: #0088cc;
-        }
+  .input-group input {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    outline: none;
+    background: rgba(255, 255, 255, 0.85);
+    font-size: 15px;
+    transition: 0.3s;
+  }
 
-        .footer-text {
-          margin-top: 20px;
-          font-size: 13px;
-          opacity: 0.85;
-        }
+  .input-group input:focus {
+    background: #fff;
+    box-shadow: 0 0 0 2px rgba(0, 170, 255, 0.4);
+  }
 
-        .error-msg {
-          color: #ff8080;
-          margin-top: 10px;
-          font-size: 14px;
-        }
-      `}</style>
+  /* 🔥 BOTÓN */
+  button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #00aaff, #0077cc);
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+
+  button:hover {
+    transform: scale(1.03);
+    box-shadow: 0 5px 15px rgba(0, 170, 255, 0.4);
+  }
+
+  /* 🔥 TEXTO INFERIOR */
+  .footer-text {
+    margin-top: 20px;
+    font-size: 13px;
+    opacity: 0.85;
+  }
+
+  /* 🔥 ERROR */
+  .error-msg {
+    color: #ff4d4d;
+    margin-top: 10px;
+    font-size: 14px;
+  }
+`}</style>
 
     </div>
   );

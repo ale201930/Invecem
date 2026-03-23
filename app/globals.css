@@ -64,6 +64,7 @@ input, select, textarea {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1.5rem;
 }
+
 /* Utilidad para ocultar cosas solo en móvil o solo en PC */
 .hide-mobile {
   @media (max-width: 768px) {

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 
-export default function Dashboard() {
+export default function ProteccionFisica() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -18,16 +18,14 @@ export default function Dashboard() {
       <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
         <div className="sidebar-header">
           <h2 className="title">INVECEM</h2>
-          <small>Panel Administrativo</small>
+          <small>Protección Física</small>
         </div>
 
         <nav className="nav-menu">
           <li className="nav-item active">🏠 Inicio</li>
-          <li className="nav-item">🛡 Inspector</li>
-          <li className="nav-item">👥 Recursos Humanos</li>
-          <li className="nav-item">🛡 Protección Física</li>
-          <li className="nav-item">👤 Usuarios</li>
-          <li className="nav-item">📊 Reportes</li>
+          <li className="nav-item">📝 Registrar Personal de Contratas</li>
+          <li className="nav-item">👥 Usuarios Registrados</li>
+          <li className="nav-item">📅 Asistencia del Día</li>
         </nav>
 
         <div className="logout">
@@ -38,7 +36,7 @@ export default function Dashboard() {
       {/* MAIN */}
       <main className="main-view">
 
-        {/* HEADER */}
+        {/* BIENVENIDA */}
         <div className="welcome-card">
           <div className="userInfo">
             <Image 
@@ -49,11 +47,14 @@ export default function Dashboard() {
               className="avatar"
             />
             <div>
-              <h1>Bienvenido Administrador 👋</h1>
-              <p>Panel principal del sistema</p>
+              <h1>Bienvenido Protección Física 👋</h1>
+              <p>Control de accesos y personal externo</p>
             </div>
           </div>
         </div>
+
+       
+       
 
       </main>
 
@@ -145,6 +146,7 @@ export default function Dashboard() {
           padding: 25px;
           border-radius: 20px;
           box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+          margin-bottom: 30px;
         }
 
         .userInfo {
@@ -169,7 +171,31 @@ export default function Dashboard() {
           color: #666;
         }
 
-        /* BOTÓN MOBILE */
+        /* TARJETAS */
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 25px;
+        }
+
+        .stat-card {
+          background: white;
+          padding: 30px;
+          border-radius: 20px;
+          text-align: center;
+          font-weight: bold;
+          cursor: pointer;
+          transition: 0.3s;
+          border: 1px solid #eee;
+        }
+
+        .stat-card:hover {
+          transform: translateY(-10px);
+          box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+          border-color: #e30613;
+        }
+
+        /* MOBILE */
         .menu-btn {
           display: none;
           position: fixed;

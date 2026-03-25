@@ -2,9 +2,12 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import Link from "next/link"; // Importamos Link
+import { usePathname } from "next/navigation"; // Para detectar la ruta activa
 
 export default function ProteccionFisica() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname(); // Obtenemos la ruta actual
 
   return (
     <div className="admin-layout">
@@ -22,10 +25,33 @@ export default function ProteccionFisica() {
         </div>
 
         <nav className="nav-menu">
-          <li className="nav-item active">🏠 Inicio</li>
-          <li className="nav-item">📝 Registrar Personal de Contratas</li>
-          <li className="nav-item">👥 Usuarios Registrados</li>
-          <li className="nav-item">📅 Asistencia del Día</li>
+          {/* INICIO */}
+          <Link href="/proteccion-fisica" style={{ textDecoration: 'none' }}>
+            <li className={`nav-item ${pathname === "/proteccion-fisica" ? "active" : ""}`}>
+              🏠 Inicio
+            </li>
+          </Link>
+
+          {/* REGISTRO DE CONTRATAS */}
+          <Link href="/proteccion-fisica/registro-de-contratas" style={{ textDecoration: 'none' }}>
+            <li className={`nav-item ${pathname === "/proteccion-fisica/registro-de-contratas" ? "active" : ""}`}>
+              📝 Registro de contratas
+            </li>
+          </Link>
+
+          {/* USUARIOS DE CONTRATAS */}
+          <Link href="/proteccion-fisica/usuarios-de-contratas" style={{ textDecoration: 'none' }}>
+            <li className={`nav-item ${pathname === "/proteccion-fisica/usuarios-de-contratas" ? "active" : ""}`}>
+              👥 Usuarios de contratas
+            </li>
+          </Link>
+
+          {/* ASISTENCIA DEL DÍA */}
+          <Link href="/proteccion-fisica/asistencia-del-dia" style={{ textDecoration: 'none' }}>
+            <li className={`nav-item ${pathname === "/proteccion-fisica/asistencia-del-dia" ? "active" : ""}`}>
+              📅 Asistencia del Día
+            </li>
+          </Link>
         </nav>
 
         <div className="logout">
@@ -35,7 +61,6 @@ export default function ProteccionFisica() {
 
       {/* MAIN */}
       <main className="main-view">
-
         {/* BIENVENIDA */}
         <div className="welcome-card">
           <div className="userInfo">
@@ -52,14 +77,11 @@ export default function ProteccionFisica() {
             </div>
           </div>
         </div>
-
-       
-       
-
       </main>
 
       {/* CSS UNIFICADO */}
       <style jsx>{`
+        /* ... Tu CSS original se mantiene igual ... */
         .admin-layout {
           display: flex;
           min-height: 100vh;
@@ -67,7 +89,6 @@ export default function ProteccionFisica() {
           font-family: 'Segoe UI', sans-serif;
         }
 
-        /* SIDEBAR */
         .sidebar {
           width: 260px;
           background: #1a1a1a;
@@ -115,7 +136,6 @@ export default function ProteccionFisica() {
           font-weight: bold;
         }
 
-        /* LOGOUT */
         .logout {
           padding: 20px;
         }
@@ -135,7 +155,6 @@ export default function ProteccionFisica() {
           color: white;
         }
 
-        /* MAIN */
         .main-view {
           flex: 1;
           padding: 40px;
@@ -171,31 +190,6 @@ export default function ProteccionFisica() {
           color: #666;
         }
 
-        /* TARJETAS */
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-          gap: 25px;
-        }
-
-        .stat-card {
-          background: white;
-          padding: 30px;
-          border-radius: 20px;
-          text-align: center;
-          font-weight: bold;
-          cursor: pointer;
-          transition: 0.3s;
-          border: 1px solid #eee;
-        }
-
-        .stat-card:hover {
-          transform: translateY(-10px);
-          box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-          border-color: #e30613;
-        }
-
-        /* MOBILE */
         .menu-btn {
           display: none;
           position: fixed;
@@ -210,25 +204,15 @@ export default function ProteccionFisica() {
         }
 
         @media (max-width: 768px) {
-          .menu-btn {
-            display: block;
-          }
-
+          .menu-btn { display: block; }
           .sidebar {
             position: fixed;
             left: -100%;
             height: 100%;
             z-index: 999;
           }
-
-          .sidebar.open {
-            left: 0;
-          }
-
-          .main-view {
-            padding: 20px;
-            margin-top: 50px;
-          }
+          .sidebar.open { left: 0; }
+          .main-view { padding: 20px; margin-top: 50px; }
         }
       `}</style>
     </div>

@@ -21,6 +21,7 @@ const HORARIOS_PLANTA = {
 };
 
 const HORARIO_INCES = "Estudiante (08:00 AM - 03:00 PM)";
+const HORARIO_PASANTE = "Pasantías (08:00 AM - 04:00 PM)"; // Nuevo horario para pasantes
 
 const estadoInicial = {
   cedula: "",
@@ -31,11 +32,13 @@ const estadoInicial = {
   area: "",
   tipoPersonal: "INVECEM", 
   programaInces: "", 
-  cohorteInces: "",   
+  cohorteInces: "",
+  universidadPasante: "", // Nuevo campo
+  carreraPasante: "",     // Nuevo campo
   turno: HORARIOS_PLANTA.DIURNO,
   estatus: "Activo (En funciones)",
   observaciones: "",
-  recordAsistencia: 0 // Se mantiene en la data pero no en la UI
+  recordAsistencia: 0 
 };
 
 function FormularioRegistro() {
@@ -48,9 +51,12 @@ function FormularioRegistro() {
   const [formData, setFormData] = useState(estadoInicial);
 
   useEffect(() => {
+    // Control de horarios automáticos según el tipo
     if (formData.tipoPersonal === "Estudiante INCESS") {
       setFormData(prev => ({ ...prev, turno: HORARIO_INCES }));
-    } else if (formData.tipoPersonal === "INVECEM" && formData.turno === HORARIO_INCES) {
+    } else if (formData.tipoPersonal === "Pasante") {
+      setFormData(prev => ({ ...prev, turno: HORARIO_PASANTE }));
+    } else if (formData.tipoPersonal === "INVECEM" && (formData.turno === HORARIO_INCES || formData.turno === HORARIO_PASANTE)) {
       setFormData(prev => ({ ...prev, turno: HORARIOS_PLANTA.DIURNO }));
     }
   }, [formData.tipoPersonal]);
@@ -82,11 +88,24 @@ function FormularioRegistro() {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleFichaChange = (e) => {
+    const { value } = e.target;
+    if (value.length <= 5) {
+      setFormData({ ...formData, ficha: value.toUpperCase() });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (formData.ficha.length !== 5) {
+        alert("⚠️ La ficha debe tener exactamente 5 dígitos.");
+        return;
+    }
+
     setLoading(true);
     try {
       const personalRef = collection(db, "personal");
+
       if (editId) {
         await updateDoc(doc(db, "personal", editId), {
           ...formData,
@@ -102,8 +121,17 @@ function FormularioRegistro() {
           setLoading(false);
           return;
         }
+
+        const qFicha = query(personalRef, where("ficha", "==", formData.ficha));
+        const queryFicha = await getDocs(qFicha);
+        if (!queryFicha.empty) {
+          alert(`⚠️ La Ficha ${formData.ficha} ya está asignada.`);
+          setLoading(false);
+          return;
+        }
+
         await addDoc(personalRef, { ...formData, fechaRegistro: serverTimestamp() });
-        alert("✅ Personal registrado.");
+        alert("✅ Personal registrado correctamente.");
         setFormData(estadoInicial);
       }
     } catch (error) { alert("Error: " + error.message); }
@@ -134,6 +162,7 @@ function FormularioRegistro() {
               <select name="tipoPersonal" value={formData.tipoPersonal} onChange={handleChange} className="select-highlight" required>
                 <option value="INVECEM">TRABAJADOR INVECEM (FIJO)</option>
                 <option value="Estudiante INCESS">ESTUDIANTE INCES</option>
+                <option value="Pasante">PASANTE (UNIVERSITARIO)</option> {/* Opción agregada */}
               </select>
             </div>
             <div className="grid-3">
@@ -156,10 +185,17 @@ function FormularioRegistro() {
             <h3 className="section-title"><span>2</span> Ubicación y Horario</h3>
             <div className="grid-3">
               <div className="input-group">
-                <label>Número de Ficha</label>
-                <input type="text" name="ficha" value={formData.ficha} placeholder="INV-0000" onChange={handleChange} required disabled={!!editId} />
+                <label>Número de Ficha (5 dígitos)</label>
+                <input 
+                    type="text" name="ficha" value={formData.ficha} placeholder="00000" 
+                    onChange={handleFichaChange} required disabled={!!editId}
+                    style={{ borderColor: formData.ficha.length === 5 ? '#008b8b' : '#cbd5e1' }}
+                />
+                <small style={{ fontSize: '10px', color: '#64748b' }}>{formData.ficha.length}/5 caracteres</small>
               </div>
-              {formData.tipoPersonal === "INVECEM" ? (
+
+              {/* CAMPOS DINÁMICOS SEGÚN TIPO DE PERSONAL */}
+              {formData.tipoPersonal === "INVECEM" && (
                 <>
                   <div className="input-group">
                     <label>Cargo</label>
@@ -177,15 +213,30 @@ function FormularioRegistro() {
                     </select>
                   </div>
                 </>
-              ) : (
+              )}
+
+              {formData.tipoPersonal === "Estudiante INCESS" && (
                 <>
                   <div className="input-group">
                     <label>Programa de Formación</label>
-                    <input type="text" name="programaInces" value={formData.programaInces} onChange={handleChange} required />
+                    <input type="text" name="programaInces" value={formData.programaInces} placeholder="Ej: Mecánica" onChange={handleChange} required />
                   </div>
                   <div className="input-group">
                     <label>Fase / Cohorte</label>
-                    <input type="text" name="cohorteInces" value={formData.cohorteInces} onChange={handleChange} required />
+                    <input type="text" name="cohorteInces" value={formData.cohorteInces} placeholder="Ej: 2024-II" onChange={handleChange} required />
+                  </div>
+                </>
+              )}
+
+              {formData.tipoPersonal === "Pasante" && (
+                <>
+                  <div className="input-group">
+                    <label>Universidad / Instituto</label>
+                    <input type="text" name="universidadPasante" value={formData.universidadPasante} placeholder="Ej: Unerg / Iut" onChange={handleChange} required />
+                  </div>
+                  <div className="input-group">
+                    <label>Carrera</label>
+                    <input type="text" name="carreraPasante" value={formData.carreraPasante} placeholder="Ej: Informática" onChange={handleChange} required />
                   </div>
                 </>
               )}
@@ -194,12 +245,15 @@ function FormularioRegistro() {
             <div className="grid-2 mt-20">
               <div className="input-group">
                 <label>Turno Asignado</label>
-                <select name="turno" value={formData.turno} className="border-yellow" onChange={handleChange} disabled={formData.tipoPersonal === "Estudiante INCESS"}>
+                <select name="turno" value={formData.turno} className="border-yellow" onChange={handleChange} 
+                  disabled={formData.tipoPersonal !== "INVECEM"}>
                   {formData.tipoPersonal === "INVECEM" ? (
                     <>
                       <option value={HORARIOS_PLANTA.DIURNO}>{HORARIOS_PLANTA.DIURNO}</option>
                       <option value={HORARIOS_PLANTA.NOCTURNO}>{HORARIOS_PLANTA.NOCTURNO}</option>
                     </>
+                  ) : formData.tipoPersonal === "Pasante" ? (
+                    <option value={HORARIO_PASANTE}>{HORARIO_PASANTE}</option>
                   ) : (
                     <option value={HORARIO_INCES}>{HORARIO_INCES}</option>
                   )}

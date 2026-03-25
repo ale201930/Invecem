@@ -48,6 +48,7 @@ export default function RegistroAsistencia() {
   }, []);
 
   const calcularEstatus = (horaEntrada, turno) => {
+    if (!turno) return "Puntual";
     let horaTope = 7; 
     if (turno?.includes("07:00 PM")) horaTope = 19; 
     if (turno?.includes("08:00 AM")) horaTope = 8;  
@@ -86,24 +87,46 @@ export default function RegistroAsistencia() {
     setCargando(true);
 
     try {
-      const personalRef = collection(db, "personal");
-      const qFicha = query(personalRef, where("ficha", "==", valor));
-      let snapPersonal = await getDocs(qFicha);
+      let personaEncontrada = null;
+      let esContratista = false;
 
-      if (snapPersonal.empty) {
-        const qCedula = query(personalRef, where("cedula", "==", valor));
-        snapPersonal = await getDocs(qCedula);
+      // 1. BUSCAR EN PERSONAL FIJO (Ficha o Cédula completa)
+      const personalRef = collection(db, "personal");
+      let qFicha = query(personalRef, where("ficha", "==", valor));
+      let snap = await getDocs(qFicha);
+
+      if (snap.empty) {
+        let qCedula = query(personalRef, where("cedula", "==", valor));
+        snap = await getDocs(qCedula);
       }
 
-      if (snapPersonal.empty) {
-        alert("❌ No encontrado.");
+      // 2. SI NO SE ENCONTRÓ, BUSCAR EN CONTRATISTAS (Cédula completa o últimos 5 dígitos)
+      if (snap.empty) {
+        const contratistasRef = collection(db, "contratistas");
+        const allContratas = await getDocs(contratistasRef);
+        
+        // Buscamos coincidencia exacta o por últimos 5 dígitos
+        personaEncontrada = allContratas.docs
+          .map(d => ({ ...d.data(), id: d.id }))
+          .find(c => c.cedula === valor || c.cedula.endsWith(valor));
+
+        if (personaEncontrada) esContratista = true;
+      } else {
+        personaEncontrada = snap.docs[0].data();
+      }
+
+      if (!personaEncontrada) {
+        alert("❌ No registrado en el sistema (Personal o Contratas).");
         setIdentificador(""); setCargando(false); return;
       }
 
-      const empleado = snapPersonal.docs[0].data();
       const horaActual = obtenerHoraAMPM(); 
-      const registroExistente = asistenciasHoy.find(a => a.ficha === empleado.ficha && !a.salida);
+      // Buscar si ya tiene una entrada abierta hoy
+      const registroExistente = asistenciasHoy.find(a => 
+        (a.cedula === personaEncontrada.cedula || (a.ficha && a.ficha === personaEncontrada.ficha)) && !a.salida
+      );
 
+      // --- LÓGICA DE SALIDA ---
       if (registroExistente) {
         await updateDoc(doc(db, "asistencias", registroExistente.id), {
           salida: horaActual,
@@ -112,41 +135,50 @@ export default function RegistroAsistencia() {
         setIdentificador(""); setCargando(false); return;
       }
 
+      // --- LÓGICA DE ENTRADA ---
       let esBeneficio = false;
-      if (empleado.estatus !== "Activo (En funciones)") {
-        if (window.confirm(`⚠️ PERSONAL EN ${empleado.estatus.toUpperCase()}\n¿Autorizar entrada para BENEFICIOS?`)) {
+      // Solo validar estatus si no es contratista (el personal fijo tiene estatus de vacaciones, etc.)
+      if (!esContratista && personaEncontrada.estatus !== "Activo (En funciones)") {
+        if (window.confirm(`⚠️ PERSONAL EN ${personaEncontrada.estatus.toUpperCase()}\n¿Autorizar entrada para BENEFICIOS?`)) {
           if (prompt("PIN:") !== MASTER_PIN) { alert("PIN Incorrecto."); setIdentificador(""); setCargando(false); return; }
           esBeneficio = true;
         } else { setIdentificador(""); setCargando(false); return; }
       }
 
-      const estatusCalculado = calcularEstatus(horaActual, empleado.turno);
+      const estatusCalculado = esContratista ? "PRESENTE" : calcularEstatus(horaActual, personaEncontrada.turno);
 
-      // --- CORRECCIÓN: Al guardar nos aseguramos de que no queden vacíos ---
+      // GUARDAR EN BASE DE DATOS
       await addDoc(collection(db, "asistencias"), {
-        nombreCompleto: `${empleado.nombres} ${empleado.apellidos}`.toUpperCase(),
-        ficha: empleado.ficha,
-        cedula: empleado.cedula,
-        cargo: empleado.cargo || "No asignado",
-        area: empleado.area || "No asignado",
-        tipoPersonal: empleado.tipoPersonal || "INVECEM",
+        nombreCompleto: esContratista 
+          ? `${personaEncontrada.nombres} ${personaEncontrada.apellidos}`.toUpperCase()
+          : `${personaEncontrada.nombres} ${personaEncontrada.apellidos}`.toUpperCase(),
+        ficha: personaEncontrada.ficha || "EXTERNO",
+        cedula: personaEncontrada.cedula,
+        cargo: esContratista ? "CONTRATISTA" : (personaEncontrada.cargo || "No asignado"),
+        area: esContratista ? (personaEncontrada.nombreContrata || "CONTRATA") : (personaEncontrada.area || "No asignado"),
+        tipoPersonal: esContratista ? "CONTRATISTA" : (personaEncontrada.tipoPersonal || "INVECEM"),
         entrada: horaActual,
         salida: null,
         estado: "PRESENTE",
         estatus: estatusCalculado,
-        estatus_al_entrar: empleado.estatus,
+        estatus_al_entrar: personaEncontrada.estatus || "Activo",
         motivo: esBeneficio ? "BENEFICIO" : "LABORAL",
         fechaHora: serverTimestamp()
       });
 
       setIdentificador("");
-    } catch (error) { console.error(error); alert("Error."); }
+    } catch (error) { 
+      console.error(error); 
+      alert("Error en el proceso."); 
+    }
     setCargando(false);
   };
 
+  // ... (Resto del JSX se mantiene igual que tu archivo original)
   const listaFiltrada = asistenciasHoy.filter(a => 
     (a.nombreCompleto?.toLowerCase() || "").includes(filtro.toLowerCase()) || 
-    (a.ficha?.toLowerCase() || "").includes(filtro.toLowerCase())
+    (a.ficha?.toLowerCase() || "").includes(filtro.toLowerCase()) ||
+    (a.cedula?.toLowerCase() || "").includes(filtro.toLowerCase())
   );
 
   return (
@@ -162,13 +194,13 @@ export default function RegistroAsistencia() {
         </header>
 
         <section className="scanner-box no-print">
-          <label>Escaneo de Ficha / Cédula</label>
+          <label>Escaneo de Ficha / Cédula (o últimos 5 dígitos)</label>
           <form onSubmit={procesarRegistro} className="input-group">
             <input 
               type="text" 
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
-              placeholder="ESCANEE AQUÍ..."
+              placeholder="ESCANEE O ESCRIBA AQUÍ..."
               autoFocus
               disabled={cargando}
             />
@@ -176,7 +208,7 @@ export default function RegistroAsistencia() {
               {cargando ? "..." : "OK"}
             </button>
           </form>
-          <p className="help-text">Detección automática de Entrada/Salida y Beneficios.</p>
+          <p className="help-text">Soporta Fichas, Cédulas completas y terminaciones de Contratistas.</p>
         </section>
 
         <div className="table-header no-print">
@@ -218,20 +250,19 @@ export default function RegistroAsistencia() {
                 return (
                   <tr key={reg.id}>
                     <td>{reg.ficha}</td>
-                    <td style={{fontWeight: 'bold'}}>{reg.nombreCompleto}</td>
+                    <td style={{fontWeight: 'bold', textAlign: 'left'}}>{reg.nombreCompleto}</td>
                     <td>{reg.cedula}</td>
                     <td>
-                      {/* VALIDACIÓN EN RENDERIZADO POR SI ACASO */}
-                      <div style={{fontWeight: 'bold', color: '#008b8b'}}>{reg.cargo || "No asignado"}</div>
-                      <div style={{fontSize: '11px', fontWeight: '600', color: '#64748b'}}>{reg.area || "No asignado"}</div>
+                      <div style={{fontWeight: 'bold', color: '#008b8b'}}>{reg.cargo}</div>
+                      <div style={{fontSize: '11px', fontWeight: '600', color: '#64748b'}}>{reg.area}</div>
                     </td>
                     <td>
                       <span style={{
                         fontSize: '10px',
                         fontWeight: '800',
-                        color: reg.tipoPersonal === 'Estudiante INCES' ? '#e30613' : '#334155'
+                        color: reg.tipoPersonal === 'CONTRATISTA' ? '#008b8b' : (reg.tipoPersonal === 'Estudiante INCES' ? '#e30613' : '#334155')
                       }}>
-                        {reg.tipoPersonal || "INVECEM"}
+                        {reg.tipoPersonal}
                       </span>
                     </td>
                     <td className="time-cell">{reg.entrada}</td>

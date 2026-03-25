@@ -94,124 +94,159 @@ export default function PanelRecursosHumanos() {
       </main>
 
       {/* CSS */}
-      <style jsx>{`
-        .admin-layout {
-          display: flex;
-          min-height: 100vh;
-          background: url("/img/recursos1.jpg") no-repeat center center;
-          font-family: 'Segoe UI', sans-serif;
-        }
+    <style jsx>{`
+  .admin-layout {
+    display: flex;
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-image: url("/img/recursos1.jpg");
+    
+    /* --- MOVIMIENTO A LA DERECHA --- */
+    background-position: 120% center; /* 120% empuja el logo más a la derecha */
+    background-repeat: no-repeat;
+    background-size: cover; 
+    background-attachment: fixed;
+    background-color: #ffffff; /* Evita huecos si la imagen se mueve mucho */
+  }
+  .sidebar {
+    width: 260px;
+    background: #1a1a1a;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    transition: 0.3s;
+    z-index: 10;
+    box-shadow: 4px 0 10px rgba(0,0,0,0.3);
+  }
 
-        .sidebar {
-          width: 260px;
-          background: #1a1a1a;
-          color: white;
-          display: flex;
-          flex-direction: column;
-          transition: 0.3s;
-        }
+  .sidebar-header {
+    text-align: center;
+    padding: 30px 0;
+    border-bottom: 1px solid #333;
+  }
 
-        .sidebar-header {
-          text-align: center;
-          padding: 30px 0;
-          border-bottom: 1px solid #333;
-        }
+  .title {
+    color: #e30613;
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: 800;
+  }
 
-        .title {
-          color: #e30613;
-          margin: 0;
-          font-size: 1.8rem;
-        }
+  .nav-menu {
+    list-style: none;
+    padding: 20px 0;
+    flex-grow: 1;
+  }
 
-        .nav-menu {
-          list-style: none;
-          padding: 20px 0;
-          flex-grow: 1;
-        }
+  .nav-item {
+    margin: 5px 15px;
+    padding: 12px 15px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: #aaa;
+    font-weight: 500;
+    transition: 0.2s;
+  }
 
-        .nav-item {
-          margin: 5px 15px;
-          padding: 12px 15px;
-          border-radius: 10px;
-          cursor: pointer;
-          color: #aaa;
-        }
+  .nav-item:hover, .active {
+    background: #e30613;
+    color: white;
+  }
 
-        .nav-item:hover {
-          background: #e30613;
-          color: white;
-        }
+  .logout {
+    padding: 20px;
+  }
 
-        .active {
-          background: #e30613;
-          color: white;
-        }
+  .btn-logout {
+    border: 2px solid #e30613;
+    color: #e30613;
+    background: transparent;
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+  }
 
-        .logout {
-          padding: 20px;
-        }
+  .btn-logout:hover {
+    background: #e30613;
+    color: white;
+  }
 
-        .btn-logout {
-          border: 1px solid #e30613;
-          color: #e30613;
-          background: transparent;
-          width: 100%;
-          padding: 10px;
-          border-radius: 10px;
-          cursor: pointer;
-        }
+  .main-view {
+    flex: 1;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Alinea el contenido a la izquierda */
+  }
 
-        .btn-logout:hover {
-          background: #e30613;
-          color: white;
-        }
+  /* TARJETA BIENVENIDO: LARGA, FINITA Y ELEGANTE */
+  .welcome-card {
+    background: #e30613; /* Rojo corporativo */
+    padding: 12px 30px; /* Finite vertical, Ancho horizontal */
+    border-radius: 15px; /* Bordes redondeados pero elegantes */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    width: 100%; /* Ocupa todo el ancho disponible */
+    max-width: 900px; /* Tamaño máximo largo */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
 
-        .main-view {
-          flex: 1;
-          padding: 40px;
-        }
+  .welcome-card h1 {
+    color: #000000 !important; /* Letras negras */
+    font-size: 18px; /* Texto más pequeño y fino */
+    margin: 0 0 4px 0;
+    font-weight: 800;
+  }
 
-        .welcome-card {
-          background: white;
-          padding: 25px;
-          border-radius: 20px;
-          box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        }
+  .welcome-card p {
+    color: #000000 !important; /* Letras negras */
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+  }
 
-        .menu-btn {
-          display: none;
-          position: fixed;
-          top: 15px;
-          left: 15px;
-          z-index: 1000;
-          background: #1a1a1a;
-          color: white;
-          border: none;
-          padding: 10px;
-          border-radius: 8px;
-        }
+  .menu-btn {
+    display: none;
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 1000;
+    background: #1a1a1a;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+  }
 
-        @media (max-width: 768px) {
-          .menu-btn {
-            display: block;
-          }
+  @media (max-width: 768px) {
+    .menu-btn {
+      display: block;
+    }
 
-          .sidebar {
-            position: fixed;
-            left: -100%;
-            height: 100%;
-          }
+    .sidebar {
+      position: fixed;
+      left: -100%;
+      height: 100%;
+    }
 
-          .sidebar.open {
-            left: 0;
-          }
+    .sidebar.open {
+      left: 0;
+    }
 
-          .main-view {
-            padding: 20px;
-            margin-top: 50px;
-          }
-        }
-      `}</style>
+    .main-view {
+      padding: 20px;
+      margin-top: 60px;
+    }
+
+    .welcome-card {
+      width: calc(100% - 20px);
+      margin: 0 auto;
+    }
+  }
+`}</style>
     </div>
   );
 }

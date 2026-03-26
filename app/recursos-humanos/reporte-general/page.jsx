@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { db } from "@/app/lib/firebase"; 
 import { 
   collection, 
-  onSnapshot, 
   query, 
   where, 
   getDocs, 
@@ -16,219 +15,295 @@ import {
 export default function ReportesGenerales() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [fechaDiaria, setFechaDiaria] = useState(new Date().toISOString().split('T')[0]);
-  const [indicadores, setIndicadores] = useState({
-    asistencia: "0 Pers.", retrasos: 0, reposos: 0, vacaciones: 0, inasistencias: 0
-  });
+  
+  const [fechaBusqueda, setFechaBusqueda] = useState(new Date().toISOString().split('T')[0]);
+  const [filtroEmpresa, setFiltroEmpresa] = useState("TODOS"); 
+  const [filtroTurno, setFiltroTurno] = useState("TODOS"); 
+  const [filtroArea, setFiltroArea] = useState("TODOS");
+  const [busquedaManual, setBusquedaManual] = useState("");
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [resultados, setResultados] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Función para formato 12h
+  useEffect(() => { setMounted(true); }, []);
+
+  // Función para mostrar la fecha en formato DD/MM/AAAA
+  const formatearFechaVisual = (fechaISO) => {
+    if (!fechaISO) return "";
+    const [anio, mes, dia] = fechaISO.split('-');
+    return `${dia}/${mes}/${anio}`;
+  };
+
   const formatAMPM = (hora24) => {
-    if (!hora24 || hora24 === "--:--") return "--:--";
-    let [horas, minutos] = hora24.split(':');
-    horas = parseInt(horas);
-    const ampm = horas >= 12 ? 'PM' : 'AM';
-    horas = horas % 12;
-    horas = horas ? horas : 12;
-    return `${horas.toString().padStart(2, '0')}:${minutos} ${ampm}`;
+    if (!hora24 || hora24 === "--:--" || hora24 === "") return "--:--";
+    let limpia = hora24.replace(/AM|PM/gi, '').trim();
+    let [horas, minutos] = limpia.split(':');
+    let h = parseInt(horas);
+    if (isNaN(h)) return "--:--";
+    const ampm = h >= 12 ? ' PM' : ' AM';
+    const h12 = h % 12 || 12;
+    return `${h12.toString().padStart(2, '0')}:${minutos}${ampm}`;
   };
 
-  useEffect(() => {
-    if (!mounted) return;
-    
-    // 1. Escuchar Personal (Reposos, Vacaciones, Inactivos)
-    const unsubPersonal = onSnapshot(collection(db, "personal"), (snapshot) => {
-      const personal = snapshot.docs.map(doc => doc.data());
-      setIndicadores(prev => ({ 
-        ...prev, 
-        reposos: personal.filter(p => p.estatus === "Reposo Médico").length,
-        vacaciones: personal.filter(p => p.estatus === "Vacaciones").length,
-        inasistencias: personal.filter(p => p.estatus === "Inactivo").length 
-      }));
-    });
-
-    // 2. Escuchar Asistencias del día para "EN PLANTA" y "RETRASOS"
-    const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
-    const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
-
-    const qAsis = query(
-      collection(db, "asistencias"), 
-      where("fechaHora", ">=", Timestamp.fromDate(inicioHoy)),
-      where("fechaHora", "<=", Timestamp.fromDate(finHoy))
-    );
-    
-    const unsubAsis = onSnapshot(qAsis, (snapshot) => {
-      const asistenciasHoy = snapshot.docs.map(doc => doc.data());
-      
-      // --- CORRECCIÓN AQUÍ: Solo contamos los que NO tienen salida marcada ---
-      const personasEnPlanta = asistenciasHoy.filter(a => !a.salida || a.salida === "--:--");
-      const totalEnPlanta = new Set(personasEnPlanta.map(a => a.ficha)).size;
-
-      // Retrasos: Solo de los que entraron hoy por motivo laboral
-      const retardos = asistenciasHoy.filter(a => {
-        const d = a.fechaHora?.toDate();
-        const esLaboral = a.motivo === "LABORAL" || !a.motivo;
-        return d && esLaboral && (d.getHours() > 7 || (d.getHours() === 7 && d.getMinutes() > 10));
-      }).length;
-
-      setIndicadores(prev => ({ 
-        ...prev, 
-        retrasos: retardos, 
-        asistencia: `${totalEnPlanta} Pers.` 
-      }));
-    });
-
-    return () => { unsubPersonal(); unsubAsis(); };
-  }, [mounted]);
-
-  // (Mantenemos las funciones loadScript, handleDownloadPDF y fetchReportData igual que antes...)
-  const loadScript = (src) => {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${src}"]`)) return resolve();
-      const script = document.createElement("script");
-      script.src = src;
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  };
-
-  const handleDownloadPDF = async (tipo, valor) => {
-    if (!valor) return alert("Seleccione un periodo.");
+  const ejecutarBusqueda = async () => {
+    setLoading(true);
     try {
-      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js");
-      const { jsPDF } = window.jspdf;
-      const data = await fetchReportData(tipo, valor);
-      if (data.length === 0) return alert("No hay registros finalizados.");
+      const inicio = new Date(fechaBusqueda + "T00:00:00");
+      const fin = new Date(fechaBusqueda + "T23:59:59");
 
-      const docPDF = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
-      const pageWidth = docPDF.internal.pageSize.getWidth();
-      docPDF.setFillColor(0, 139, 139); 
-      docPDF.rect(0, 0, pageWidth, 35, 'F');
-      docPDF.setTextColor(255, 255, 255);
-      docPDF.setFontSize(20);
-      docPDF.text("INVECEM - CONTROL DE ASISTENCIA Y BENEFICIOS", 14, 18);
-      docPDF.setFontSize(10);
-      docPDF.text(`REPORTE DE JORNADAS | PERIODO: ${valor}`, 14, 28);
-      
-      const rows = data.map(item => [
-        item.ficha, item.nombre, item.area.toUpperCase(), item.cargo.toUpperCase(),
-        formatAMPM(item.entrada), formatAMPM(item.salida), item.estado.toUpperCase()
-      ]);
-      
-      docPDF.autoTable({
-        startY: 40,
-        head: [['FICHA', 'NOMBRE COMPLETO', 'ÁREA TRABAJO', 'CARGO', 'H. ENTRADA', 'H. SALIDA', 'ESTADO / MOTIVO']],
-        body: rows,
-        headStyles: { fillColor: [0, 139, 139], fontSize: 9, halign: 'center', cellPadding: 3 },
-        styles: { fontSize: 8, halign: 'center', cellPadding: 2, valign: 'middle' },
-        columnStyles: { 0: { cellWidth: 20 }, 1: { halign: 'left', cellWidth: 48 }, 4: { cellWidth: 28 }, 5: { cellWidth: 28 }, 6: { fontStyle: 'bold', cellWidth: 45 } },
-        alternateRowStyles: { fillColor: [240, 252, 252] },
-        margin: { left: 10, right: 10 }
-      });
-      docPDF.save(`Reporte_Invecem_${valor}.pdf`);
-    } catch (err) { alert("Error al generar el PDF."); }
+      const q = query(
+        collection(db, "asistencias"),
+        where("fechaHora", ">=", Timestamp.fromDate(inicio)),
+        where("fechaHora", "<=", Timestamp.fromDate(fin)),
+        orderBy("fechaHora", "asc")
+      );
+
+      const snap = await getDocs(q);
+      let data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (filtroEmpresa !== "TODOS") {
+        data = data.filter(item => {
+          if (filtroEmpresa === "INCES") return item.tipoPersonal?.includes("INCES");
+          return item.tipoPersonal === filtroEmpresa;
+        });
+      }
+
+      if (filtroTurno !== "TODOS") {
+        data = data.filter(item => {
+          if (!item.entrada) return false;
+          const [h] = item.entrada.split(":").map(Number);
+          const esNocturno = h >= 18 || h < 5; 
+          return filtroTurno === "DIURNO" ? !esNocturno : esNocturno;
+        });
+      }
+
+      if (filtroArea !== "TODOS") {
+        data = data.filter(item => item.area?.toUpperCase() === filtroArea);
+      }
+
+      if (busquedaManual.trim() !== "") {
+        const b = busquedaManual.toLowerCase();
+        data = data.filter(item => 
+          item.nombreCompleto?.toLowerCase().includes(b) || 
+          item.ficha?.toString().includes(b)
+        );
+      }
+
+      setResultados(data);
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error en la base de datos.");
+    }
+    setLoading(false);
   };
 
-  const fetchReportData = async (tipo, valor) => {
-    const colRef = collection(db, "asistencias"); 
-    let q;
-    if (tipo === 'diario') {
-      const inicio = new Date(valor + "T00:00:00");
-      const fin = new Date(valor + "T23:59:59");
-      q = query(colRef, where("fechaHora", ">=", Timestamp.fromDate(inicio)), where("fechaHora", "<=", Timestamp.fromDate(fin)), orderBy("fechaHora", "asc"));
-    } else { q = query(colRef, orderBy("fechaHora", "desc")); }
-
-    const snap = await getDocs(q);
-    const registros = {};
-    snap.docs.forEach(doc => {
-      const asis = doc.data();
-      const dateJS = asis.fechaHora?.toDate();
-      if(!dateJS) return;
-      const fechaKey = dateJS.toLocaleDateString('es-ES');
-      const id = `${asis.ficha}_${fechaKey}`;
-      if (!registros[id]) {
-        let estadoFinal = "Puntual";
-        if (asis.motivo === "BENEFICIO") {
-           const estatusLimpio = asis.estatus_al_entrar?.split(" ")[0] || "ESPECIAL";
-           estadoFinal = `${estatusLimpio} (BENEFICIO)`;
-        } else {
-           if (dateJS.getHours() > 7 || (dateJS.getHours() === 7 && dateJS.getMinutes() > 10)) estadoFinal = "Retraso";
-        }
-        registros[id] = { ficha: asis.ficha, nombre: asis.nombreCompleto || "S/N", area: asis.area || "GENERAL", cargo: asis.cargo || "OPERARIO", entrada: asis.entrada || "--:--", salida: asis.salida || "--:--", estado: estadoFinal };
-      } else {
-        if (asis.salida) registros[id].salida = asis.salida;
-        if (asis.entrada) registros[id].entrada = asis.entrada;
-      }
+  const descargarPDF = async () => {
+    if (resultados.length === 0) return alert("No hay datos para exportar.");
+    const loadJS = (src) => new Promise(r => {
+      const s = document.createElement("script"); s.src = src; s.onload = r; document.head.appendChild(s);
     });
-    return Object.values(registros).filter(r => r.salida !== "--:--");
+    await loadJS("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    await loadJS("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js");
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape" });
+
+    const areaTexto = filtroArea === "TODOS" ? "GENERAL" : filtroArea;
+    const fechaLinda = formatearFechaVisual(fechaBusqueda);
+
+    doc.setFillColor(30, 41, 59); doc.rect(0, 0, 300, 40, 'F'); 
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18); doc.text(`INVECEM - CONTROL DE ASISTENCIA ${areaTexto}`, 15, 20);
+    doc.setFontSize(10);
+    doc.text(`REGISTROS DEL DÍA: ${fechaLinda} | TURNO: ${filtroTurno}`, 15, 30);
+
+    // AQUÍ ESTÁ LA CORRECCIÓN: Se mapea Área + Cargo para el PDF
+    const filas = resultados.map(r => [
+      r.ficha, 
+      r.nombreCompleto?.toUpperCase(), 
+      `${r.area?.toUpperCase() || "N/A"} - ${r.cargo?.toUpperCase() || ""}`, 
+      formatAMPM(r.entrada),
+      formatAMPM(r.salida),
+      r.estatus || "PUNTUAL",
+      r.tipoPersonal
+    ]);
+
+    doc.autoTable({
+      startY: 45,
+      head: [['FICHA', 'COLABORADOR', 'ÁREA / CARGO', 'ENTRADA', 'SALIDA', 'ESTATUS', 'TIPO']],
+      body: filas,
+      headStyles: { fillColor: [227, 6, 19] },
+      styles: { fontSize: 8 }
+    });
+    
+    doc.save(`Reporte_${areaTexto}_${fechaLinda.replace(/\//g, '-')}.pdf`);
   };
 
   if (!mounted) return null;
 
   return (
     <div className="container">
-      <div className="header-section">
-        <button className="btn-back" onClick={() => router.push("/recursos-humanos")}>← Volver al Panel</button>
-        <h1 className="main-title">Reportes de Personal</h1>
-        <p className="subtitle">Indicadores en tiempo real | Formato Carta Horizontal.</p>
+      <div className="print-only">
+        <h1 style={{fontSize: '20px', marginBottom: '5px'}}>INVECEM - CONTROL DE ASISTENCIA</h1>
+        <h2 style={{fontSize: '16px', color: '#666'}}>ÁREA: {filtroArea === "TODOS" ? "GENERAL" : filtroArea}</h2>
+        <p style={{fontWeight: 'bold'}}>FECHA: {formatearFechaVisual(fechaBusqueda)}</p>
+        <hr />
       </div>
 
-      <div className="cards-grid">
-        <div className="report-card shadow-relief">
-          <div className="icon-circle">☀️</div>
-          <h3>Reporte Diario</h3>
-          <input type="date" className="date-input" value={fechaDiaria} onChange={(e)=>setFechaDiaria(e.target.value)} />
-          <button className="btn-pdf" onClick={() => handleDownloadPDF('diario', fechaDiaria)}>Descargar PDF</button>
+      <div className="header no-print">
+        <button className="btn-back" onClick={() => router.push("/recursos-humanos")}>← VOLVER</button>
+        <h1 className="title">Reportes <span className="text-red">INVECEM</span></h1>
+      </div>
+
+      <div className="search-box shadow-relief no-print">
+        <div className="grid-filters">
+          <div className="input-group">
+            <label>Fecha de Consulta</label>
+            <input type="date" value={fechaBusqueda} onChange={(e) => setFechaBusqueda(e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Categoría</label>
+            <select value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
+              <option value="TODOS">TODOS</option>
+              <option value="INVECEM">INVECEM</option>
+              <option value="INCES">INCES</option>
+              <option value="Pasante">PASANTES</option>
+            </select>
+          </div>
+          <div className="input-group">
+            <label>Departamento</label>
+            <select value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)}>
+              <option value="TODOS">TODAS LAS ÁREAS</option>
+              <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+              <option value="SEGURIDAD">SEGURIDAD</option>
+              <option value="OPERACIONES">OPERACIONES</option>
+              <option value="ADMINISTRACION">ADMINISTRACIÓN</option>
+            </select>
+          </div>
+          <div className="input-group">
+            <label>Turno</label>
+            <select value={filtroTurno} onChange={(e) => setFiltroTurno(e.target.value)}>
+              <option value="TODOS">TODOS</option>
+              <option value="DIURNO">DIURNO</option>
+              <option value="NOCTURNO">NOCTURNO</option>
+            </select>
+          </div>
         </div>
-        <div className="report-card shadow-relief">
-          <div className="icon-circle">📅</div>
-          <h3>Semanal</h3>
-          <input type="week" className="date-input" id="sInput" />
-          <button className="btn-pdf" onClick={() => handleDownloadPDF('semanal', document.getElementById('sInput')?.value)}>Descargar PDF</button>
-        </div>
-        <div className="report-card shadow-relief">
-          <div className="icon-circle">📊</div>
-          <h3>Mensual</h3>
-          <input type="month" className="date-input" id="mInput" />
-          <button className="btn-pdf" onClick={() => handleDownloadPDF('mensual', document.getElementById('mInput')?.value)}>Descargar PDF</button>
+
+        <div className="extra-filters">
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder="Buscar por ficha o nombre..."
+            value={busquedaManual}
+            onChange={(e) => setBusquedaManual(e.target.value)}
+          />
+          <button className="btn-search" onClick={ejecutarBusqueda} disabled={loading}>
+            {loading ? "PROCESANDO..." : "GENERAR REPORTE"}
+          </button>
         </div>
       </div>
 
-      <div className="indicators-card shadow-relief">
-        <div className="indicators-grid">
-          <div className="ind-item"><span className="ind-value turquesa">{indicadores.asistencia}</span><span className="ind-label">EN PLANTA</span></div>
-          <div className="ind-item border-left"><span className="ind-value rojo">{indicadores.retrasos}</span><span className="ind-label">RETRASOS HOY</span></div>
-          <div className="ind-item border-left"><span className="ind-value">{indicadores.reposos}</span><span className="ind-label">EN REPOSO</span></div>
-          <div className="ind-item border-left"><span className="ind-value" style={{color: '#00ced1'}}>{indicadores.vacaciones}</span><span className="ind-label">VACACIONES</span></div>
-          <div className="ind-item border-left"><span className="ind-value">{indicadores.inasistencias}</span><span className="ind-label">INACTIVOS</span></div>
+      {resultados.length > 0 ? (
+        <div className="results-container animate-in">
+          <div className="results-header no-print">
+            <div className="stats">
+              Registros del <b className="text-red">{formatearFechaVisual(fechaBusqueda)}</b>: <b className="text-turquesa">{resultados.length}</b>
+            </div>
+            <div className="btn-group">
+               <button className="btn-pdf" onClick={descargarPDF}>📥 EXPORTAR PDF</button>
+               <button className="btn-print" onClick={() => window.print()}>🖨️ IMPRIMIR LISTADO</button>
+            </div>
+          </div>
+          
+          <div className="table-wrapper">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>FICHA</th>
+                  <th>COLABORADOR</th>
+                  <th>ÁREA / CARGO</th>
+                  <th>ENTRADA</th>
+                  <th>SALIDA</th>
+                  <th>ESTATUS</th>
+                  <th>TIPO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resultados.map(r => (
+                  <tr key={r.id}>
+                    <td className="ficha-num">{r.ficha}</td>
+                    <td className="bold">{r.nombreCompleto}</td>
+                    <td className="area-td">
+                        <div className="main-area">{r.area}</div>
+                        <div className="sub-cargo">{r.cargo}</div>
+                    </td>
+                    <td className="hora">{formatAMPM(r.entrada)}</td>
+                    <td className="hora">{formatAMPM(r.salida)}</td>
+                    <td>
+                      <span className={`badge ${r.estatus === "Retraso" ? "bg-red" : "bg-turquesa"}`}>
+                        {r.estatus || "PUNTUAL"}
+                      </span>
+                    </td>
+                    <td className="tipo-tag">{r.tipoPersonal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        !loading && <div className="no-data no-print">No hay registros para {formatearFechaVisual(fechaBusqueda)}.</div>
+      )}
 
       <style jsx>{`
-        .container { padding: 40px; max-width: 1100px; margin: 0 auto; font-family: 'Segoe UI', sans-serif; background: #f8fafc; min-height: 100vh; }
-        .header-section { margin-bottom: 30px; border-left: 6px solid #008b8b; padding-left: 20px; }
-        .main-title { font-size: 26px; font-weight: 800; color: #1e293b; margin: 0; }
-        .subtitle { color: #64748b; font-size: 14px; }
-        .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-bottom: 35px; }
-        .report-card { background: white; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #e2e8f0; }
-        .shadow-relief { box-shadow: 7px 7px 0px #008b8b; }
-        .date-input { width: 100%; padding: 10px; margin: 10px 0; border: 2px solid #f1f5f9; border-radius: 8px; font-weight: 600; }
-        .btn-pdf { width: 100%; padding: 12px; background: #0f172a; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 800; transition: 0.3s; }
-        .btn-pdf:hover { background: #008b8b; }
-        .indicators-card { background: #0f172a; color: white; padding: 25px; border-radius: 20px; }
-        .indicators-grid { display: grid; grid-template-columns: repeat(5, 1fr); }
-        .ind-item { text-align: center; }
-        .ind-value { font-size: 24px; font-weight: 900; display: block; }
-        .ind-label { font-size: 9px; color: #94a3b8; font-weight: 700; }
-        .turquesa { color: #008b8b; }
-        .rojo { color: #ef4444; }
-        .border-left { border-left: 1px solid #334155; }
-        .btn-back { background: none; border: none; color: #64748b; font-weight: bold; cursor: pointer; margin-bottom: 5px; }
+        .container { padding: 40px; max-width: 1400px; margin: 0 auto; background: #f1f5f9; min-height: 100vh; font-family: sans-serif; }
+        .print-only { display: none; }
+        .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
+        .btn-back { background: #1e293b; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 800; cursor: pointer; }
+        .title { font-size: 28px; font-weight: 900; color: #1e293b; text-transform: uppercase; }
+        .text-red { color: #e30613; }
+        .text-turquesa { color: #008b8b; }
+        
+        .search-box { background: #1e293b; padding: 30px; border-radius: 20px; margin-bottom: 30px; color: white; }
+        .grid-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
+        .input-group label { display: block; font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; }
+        .input-group input, .input-group select { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: 700; color: #1e293b; background: white; }
+        
+        .extra-filters { display: flex; gap: 15px; border-top: 1px solid #334155; padding-top: 20px; }
+        .search-input { flex: 1; padding: 15px; border-radius: 10px; border: 2px solid #008b8b; font-weight: 700; color: #1e293b !important; background: white !important; outline: none; }
+        
+        .btn-search { background: #e30613; color: white; border: none; padding: 0 30px; border-radius: 10px; font-weight: 900; cursor: pointer; }
+        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .btn-group { display: flex; gap: 10px; }
+        .btn-pdf { background: #1e293b; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; }
+        .btn-print { background: #008b8b; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; }
+
+        .table-wrapper { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .report-table { width: 100%; border-collapse: collapse; }
+        .report-table th { background: #f8fafc; padding: 18px; text-align: left; font-size: 11px; font-weight: 900; color: #64748b; border-bottom: 2px solid #f1f5f9; }
+        .report-table td { padding: 16px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; }
+        
+        .area-td { text-transform: uppercase; }
+        .main-area { font-weight: 800; color: #1e293b; font-size: 12px; }
+        .sub-cargo { font-size: 11px; color: #64748b; font-weight: 600; }
+        
+        .ficha-num { font-weight: 900; color: #e30613; font-family: monospace; font-size: 16px; }
+        .bold { font-weight: 800; text-transform: uppercase; }
+        .hora { font-weight: 700; color: #0f172a; }
+        .badge { padding: 5px 12px; border-radius: 6px; font-size: 10px; font-weight: 900; color: white; }
+        .bg-red { background: #ef4444; }
+        .bg-turquesa { background: #008b8b; }
+        .shadow-relief { box-shadow: 12px 12px 0px #008b8b; }
+
+        @media print {
+          .no-print { display: none !important; }
+          .print-only { display: block !important; margin-bottom: 15px; text-align: center; }
+          .container { padding: 0; background: white; }
+          .table-wrapper { box-shadow: none; border: 1px solid #000; border-radius: 0; }
+          .report-table th { background: #f0f0f0 !important; color: black; border: 1px solid #000; }
+          .report-table td { border: 1px solid #000; }
+        }
       `}</style>
     </div>
   );

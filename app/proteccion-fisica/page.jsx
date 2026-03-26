@@ -1,13 +1,39 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
-import Link from "next/link"; // Importamos Link
-import { usePathname } from "next/navigation"; // Para detectar la ruta activa
+import { useState, useEffect } from "react"; // 1. Agregamos useEffect
+import Link from "next/link"; 
+import { usePathname, useRouter } from "next/navigation"; 
+import Cookies from "js-cookie"; 
+import { auth } from "../lib/firebase"; 
+import { signOut } from "firebase/auth";
 
 export default function ProteccionFisica() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const pathname = usePathname(); // Obtenemos la ruta actual
+  const [isAdmin, setIsAdmin] = useState(false); // 2. Estado para el admin
+  const pathname = usePathname(); 
+  const router = useRouter(); 
+
+  // 3. Efecto para validar el rol al cargar
+  useEffect(() => {
+    const role = Cookies.get("user_role");
+    if (role === "admin" || role === "administrador") {
+      setIsAdmin(true);
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      Cookies.remove("user_session");
+      Cookies.remove("user_role");
+      localStorage.removeItem("rol");
+      localStorage.removeItem("user");
+      await signOut(auth);
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
 
   return (
     <div className="admin-layout">
@@ -25,43 +51,50 @@ export default function ProteccionFisica() {
         </div>
 
         <nav className="nav-menu">
-          {/* INICIO */}
           <Link href="/proteccion-fisica" style={{ textDecoration: 'none' }}>
             <li className={`nav-item ${pathname === "/proteccion-fisica" ? "active" : ""}`}>
               🏠 Inicio
             </li>
           </Link>
 
-          {/* REGISTRO DE CONTRATAS */}
           <Link href="/proteccion-fisica/registro-de-contratas" style={{ textDecoration: 'none' }}>
             <li className={`nav-item ${pathname === "/proteccion-fisica/registro-de-contratas" ? "active" : ""}`}>
               📝 Registro de contratas
             </li>
           </Link>
 
-          {/* USUARIOS DE CONTRATAS */}
           <Link href="/proteccion-fisica/usuarios-de-contratas" style={{ textDecoration: 'none' }}>
             <li className={`nav-item ${pathname === "/proteccion-fisica/usuarios-de-contratas" ? "active" : ""}`}>
               👥 Usuarios de contratas
             </li>
           </Link>
 
-          {/* ASISTENCIA DEL DÍA */}
           <Link href="/proteccion-fisica/asistencia-del-dia" style={{ textDecoration: 'none' }}>
             <li className={`nav-item ${pathname === "/proteccion-fisica/asistencia-del-dia" ? "active" : ""}`}>
               📅 Asistencia del Día
             </li>
           </Link>
+
+          {/* ↩️ BOTÓN CORREGIDO PARA EL ADMINISTRADOR */}
+          {isAdmin && (
+            <li 
+              className="nav-item return-admin-btn" 
+              onClick={() => router.push("/administrador")}
+            >
+              ⬅ Volver al Panel Admin
+            </li>
+          )}
         </nav>
 
         <div className="logout">
-          <button className="btn-logout">🚪 Cerrar Sesión</button>
+          <button className="btn-logout" onClick={handleLogout}>
+            🚪 Cerrar Sesión
+          </button>
         </div>
       </aside>
 
       {/* MAIN */}
       <main className="main-view">
-        {/* BIENVENIDA */}
         <div className="welcome-card">
           <div className="userInfo">
             <Image 
@@ -79,9 +112,7 @@ export default function ProteccionFisica() {
         </div>
       </main>
 
-      {/* CSS UNIFICADO */}
       <style jsx>{`
-        /* ... Tu CSS original se mantiene igual ... */
         .admin-layout {
           display: flex;
           min-height: 100vh;
@@ -136,6 +167,19 @@ export default function ProteccionFisica() {
           font-weight: bold;
         }
 
+        .return-admin-btn {
+          margin-top: 20px !important;
+          border: 1px dashed #e30613 !important;
+          color: #e30613 !important;
+          font-weight: bold;
+          text-align: center;
+        }
+
+        .return-admin-btn:hover {
+          background: #e30613 !important;
+          color: white !important;
+        }
+
         .logout {
           padding: 20px;
         }
@@ -148,6 +192,8 @@ export default function ProteccionFisica() {
           padding: 10px;
           border-radius: 10px;
           cursor: pointer;
+          font-weight: bold;
+          transition: 0.3s;
         }
 
         .btn-logout:hover {
@@ -183,6 +229,7 @@ export default function ProteccionFisica() {
         .welcome-card h1 {
           margin: 0;
           color: #1a1a1a;
+          font-size: 1.5rem;
         }
 
         .welcome-card p {
@@ -205,12 +252,7 @@ export default function ProteccionFisica() {
 
         @media (max-width: 768px) {
           .menu-btn { display: block; }
-          .sidebar {
-            position: fixed;
-            left: -100%;
-            height: 100%;
-            z-index: 999;
-          }
+          .sidebar { position: fixed; left: -100%; height: 100%; z-index: 999; }
           .sidebar.open { left: 0; }
           .main-view { padding: 20px; margin-top: 50px; }
         }

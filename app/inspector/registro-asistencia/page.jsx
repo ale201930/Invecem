@@ -14,6 +14,7 @@ export default function RegistroAsistencia() {
   const [filtro, setFiltro] = useState("");
   const [asistenciasHoy, setAsistenciasHoy] = useState([]);
   const [cargando, setCargando] = useState(false);
+  const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(false);
   const [fechaHoy, setFechaHoy] = useState("");
 
   const MASTER_PIN = "1234"; 
@@ -24,6 +25,28 @@ export default function RegistroAsistencia() {
       minute: '2-digit', 
       hour12: true 
     });
+  };
+
+  const validarSalidaAnticipada = (turnoTexto) => {
+    if (!turnoTexto || !turnoTexto.includes("-")) return false;
+
+    const convertirAMinutos = (str) => {
+      const match = str.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (!match) return null;
+      let [ , hrs, mins, meridiano] = match;
+      hrs = parseInt(hrs); mins = parseInt(mins);
+      if (meridiano.toUpperCase() === "PM" && hrs !== 12) hrs += 12;
+      if (meridiano.toUpperCase() === "AM" && hrs === 12) hrs = 0;
+      return (hrs * 60) + mins;
+    };
+
+    const ahora = new Date();
+    const minutosActuales = (ahora.getHours() * 60) + ahora.getMinutes();
+    const horaSalidaTurno = turnoTexto.split("-")[1].trim();
+    const minutosSalidaTurno = convertirAMinutos(horaSalidaTurno);
+
+    if (minutosSalidaTurno === null) return false;
+    return minutosActuales < (minutosSalidaTurno - 5); 
   };
 
   useEffect(() => {
@@ -47,35 +70,59 @@ export default function RegistroAsistencia() {
     return () => unsubscribe();
   }, []);
 
-  const calcularEstatus = (horaEntrada, turno) => {
-    if (!turno) return "Puntual";
-    let horaTope = 7; 
-    if (turno?.includes("07:00 PM")) horaTope = 19; 
-    if (turno?.includes("08:00 AM")) horaTope = 8;  
+  const calcularEstatus = (horaEntrada, turnoTexto) => {
+    if (!turnoTexto) return "Puntual";
 
-    const [horaStr, minutosStr] = horaEntrada.split(':');
-    let hora = parseInt(horaStr);
-    const minutos = parseInt(minutosStr);
-    const esPM = horaEntrada.toLowerCase().includes('pm');
+    const convertirAMinutos = (str) => {
+      const match = str.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (!match) return null;
+      let [ , hrs, mins, meridiano] = match;
+      hrs = parseInt(hrs);
+      mins = parseInt(mins);
+      if (meridiano.toUpperCase() === "PM" && hrs !== 12) hrs += 12;
+      if (meridiano.toUpperCase() === "AM" && hrs === 12) hrs = 0;
+      return (hrs * 60) + mins;
+    };
 
-    if (esPM && hora !== 12) hora += 12;
-    if (!esPM && hora === 12) hora = 0;
+    const minutosMarcados = convertirAMinutos(horaEntrada);
+    const horaInicioTurno = turnoTexto.split("-")[0].trim();
+    const minutosTurno = convertirAMinutos(horaInicioTurno);
 
-    if (hora < horaTope || (hora === horaTope && minutos <= 15)) {
-      return "Puntual";
+    if (minutosMarcados === null || minutosTurno === null) return "Puntual";
+    const MARGEN = 5; 
+
+    if (minutosMarcados > (minutosTurno + MARGEN)) {
+      return "Retraso";
     }
-    return "Retraso";
+    return "Puntual";
+  };
+
+  const finalizarSalida = async (id, anticipada) => {
+    await updateDoc(doc(db, "asistencias", id), {
+      salida: obtenerHoraAMPM(),
+      estado: "FINALIZADO",
+      alertaSalida: anticipada ? "ANTICIPADA" : "NORMAL",
+      solicitudSalida: anticipada ? "COMPLETADA" : null
+    });
+    setEsperandoAutorizacion(false);
+    setIdentificador("");
+    setCargando(false);
   };
 
   const handleLimpiarHoy = async () => {
-    const pin = prompt("MODO DESARROLLADOR: Ingrese PIN para limpiar registros:");
+    const pin = prompt("MODO DESARROLLADOR:");
     if (pin === MASTER_PIN) {
-      if (confirm("¿Borrar registros de hoy?")) {
-        const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
-        const snapshot = await getDocs(query(collection(db, "asistencias"), where("fechaHora", ">=", inicioHoy)));
-        const borrarPromesas = snapshot.docs.map(d => deleteDoc(doc(db, "asistencias", d.id)));
-        await Promise.all(borrarPromesas);
-        alert("✅ Reseteado.");
+      if (confirm("⚠️ ¿BORRAR TODO?")) {
+        setCargando(true);
+        try {
+          const snapshot = await getDocs(collection(db, "asistencias"));
+          const borrarPromesas = snapshot.docs.map(d => deleteDoc(doc(db, "asistencias", d.id)));
+          await Promise.all(borrarPromesas);
+          alert("✅ SISTEMA LIMPIO.");
+        } catch (error) {
+          console.error(error);
+        }
+        setCargando(false);
       }
     }
   };
@@ -83,14 +130,13 @@ export default function RegistroAsistencia() {
   const procesarRegistro = async (e) => {
     if (e) e.preventDefault();
     const valor = identificador.trim();
-    if (!valor || cargando) return;
+    if (!valor || cargando || esperandoAutorizacion) return;
     setCargando(true);
 
     try {
       let personaEncontrada = null;
       let esContratista = false;
 
-      // 1. BUSCAR EN PERSONAL FIJO (Ficha o Cédula completa)
       const personalRef = collection(db, "personal");
       let qFicha = query(personalRef, where("ficha", "==", valor));
       let snap = await getDocs(qFicha);
@@ -100,12 +146,9 @@ export default function RegistroAsistencia() {
         snap = await getDocs(qCedula);
       }
 
-      // 2. SI NO SE ENCONTRÓ, BUSCAR EN CONTRATISTAS (Cédula completa o últimos 5 dígitos)
       if (snap.empty) {
         const contratistasRef = collection(db, "contratistas");
         const allContratas = await getDocs(contratistasRef);
-        
-        // Buscamos coincidencia exacta o por últimos 5 dígitos
         personaEncontrada = allContratas.docs
           .map(d => ({ ...d.data(), id: d.id }))
           .find(c => c.cedula === valor || c.cedula.endsWith(valor));
@@ -116,30 +159,43 @@ export default function RegistroAsistencia() {
       }
 
       if (!personaEncontrada) {
-        alert("❌ No registrado en el sistema (Personal o Contratas).");
+        alert("❌ No registrado.");
         setIdentificador(""); setCargando(false); return;
       }
 
       const horaActual = obtenerHoraAMPM(); 
-      // Buscar si ya tiene una entrada abierta hoy
       const registroExistente = asistenciasHoy.find(a => 
-        (a.cedula === personaEncontrada.cedula || (a.ficha && a.ficha === personaEncontrada.ficha)) && !a.salida
+        (a.cedula === personaEncontrada.cedula || (a.ficha && a.ficha === personaEncontrada.ficha)) && (!a.salida || a.salida === "--:--")
       );
 
-      // --- LÓGICA DE SALIDA ---
       if (registroExistente) {
-        await updateDoc(doc(db, "asistencias", registroExistente.id), {
-          salida: horaActual,
-          estado: "FINALIZADO"
-        });
-        setIdentificador(""); setCargando(false); return;
+        const esAnticipada = validarSalidaAnticipada(personaEncontrada.turno);
+
+        if (esAnticipada) {
+          if (confirm("⚠️ ¿Solicitar autorización remota a RRHH?")) {
+             setEsperandoAutorizacion(true);
+             const docRef = doc(db, "asistencias", registroExistente.id);
+             await updateDoc(docRef, { solicitudSalida: "PENDIENTE", alertaSalida: "ANTICIPADA" });
+
+             const unsub = onSnapshot(docRef, (snapshot) => {
+               if (snapshot.data()?.solicitudSalida === "APROBADA") {
+                 unsub();
+                 finalizarSalida(registroExistente.id, true);
+               }
+             });
+             setCargando(false);
+             return; 
+          } else {
+            setIdentificador(""); setCargando(false); return;
+          }
+        }
+        await finalizarSalida(registroExistente.id, false);
+        return;
       }
 
-      // --- LÓGICA DE ENTRADA ---
       let esBeneficio = false;
-      // Solo validar estatus si no es contratista (el personal fijo tiene estatus de vacaciones, etc.)
       if (!esContratista && personaEncontrada.estatus !== "Activo (En funciones)") {
-        if (window.confirm(`⚠️ PERSONAL EN ${personaEncontrada.estatus.toUpperCase()}\n¿Autorizar entrada para BENEFICIOS?`)) {
+        if (window.confirm(`⚠️ PERSONAL EN ${personaEncontrada.estatus?.toUpperCase()}\n¿Autorizar entrada para BENEFICIOS?`)) {
           if (prompt("PIN:") !== MASTER_PIN) { alert("PIN Incorrecto."); setIdentificador(""); setCargando(false); return; }
           esBeneficio = true;
         } else { setIdentificador(""); setCargando(false); return; }
@@ -147,18 +203,15 @@ export default function RegistroAsistencia() {
 
       const estatusCalculado = esContratista ? "PRESENTE" : calcularEstatus(horaActual, personaEncontrada.turno);
 
-      // GUARDAR EN BASE DE DATOS
       await addDoc(collection(db, "asistencias"), {
-        nombreCompleto: esContratista 
-          ? `${personaEncontrada.nombres} ${personaEncontrada.apellidos}`.toUpperCase()
-          : `${personaEncontrada.nombres} ${personaEncontrada.apellidos}`.toUpperCase(),
+        nombreCompleto: `${personaEncontrada.nombres} ${personaEncontrada.apellidos}`.toUpperCase(),
         ficha: personaEncontrada.ficha || "EXTERNO",
         cedula: personaEncontrada.cedula,
         cargo: esContratista ? "CONTRATISTA" : (personaEncontrada.cargo || "No asignado"),
         area: esContratista ? (personaEncontrada.nombreContrata || "CONTRATA") : (personaEncontrada.area || "No asignado"),
         tipoPersonal: esContratista ? "CONTRATISTA" : (personaEncontrada.tipoPersonal || "INVECEM"),
         entrada: horaActual,
-        salida: null,
+        salida: null, 
         estado: "PRESENTE",
         estatus: estatusCalculado,
         estatus_al_entrar: personaEncontrada.estatus || "Activo",
@@ -169,12 +222,10 @@ export default function RegistroAsistencia() {
       setIdentificador("");
     } catch (error) { 
       console.error(error); 
-      alert("Error en el proceso."); 
     }
     setCargando(false);
   };
 
-  // ... (Resto del JSX se mantiene igual que tu archivo original)
   const listaFiltrada = asistenciasHoy.filter(a => 
     (a.nombreCompleto?.toLowerCase() || "").includes(filtro.toLowerCase()) || 
     (a.ficha?.toLowerCase() || "").includes(filtro.toLowerCase()) ||
@@ -183,6 +234,18 @@ export default function RegistroAsistencia() {
 
   return (
     <div className="container">
+      {esperandoAutorizacion && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex',
+          flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white'
+        }}>
+          <h2 style={{color: '#e30613'}}>ESPERANDO AUTORIZACIÓN DE RRHH...</h2>
+          <p>La solicitud ha sido enviada al panel principal.</p>
+          <button onClick={() => setEsperandoAutorizacion(false)} className="btn-clean">Cancelar</button>
+        </div>
+      )}
+
       <div className="no-print" style={{marginBottom: '10px'}}>
         <button onClick={() => router.push("/inspector")} className="btn-back">← Volver al Panel</button>
       </div>
@@ -194,32 +257,32 @@ export default function RegistroAsistencia() {
         </header>
 
         <section className="scanner-box no-print">
-          <label>Escaneo de Ficha / Cédula (o últimos 5 dígitos)</label>
+          <label>Escaneo de Ficha / Cédula</label>
           <form onSubmit={procesarRegistro} className="input-group">
             <input 
               type="text" 
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
-              placeholder="ESCANEE O ESCRIBA AQUÍ..."
+              placeholder={esperandoAutorizacion ? "BLOQUEADO" : "ESCANEE O ESCRIBA AQUÍ..."}
               autoFocus
-              disabled={cargando}
+              disabled={cargando || esperandoAutorizacion}
             />
-            <button type="submit" disabled={cargando} className="btn-registrar">
+            <button type="submit" disabled={cargando || esperandoAutorizacion} className="btn-registrar">
               {cargando ? "..." : "OK"}
             </button>
           </form>
-          <p className="help-text">Soporta Fichas, Cédulas completas y terminaciones de Contratistas.</p>
+          <p className="help-text">Fichas, Cédulas y Contratistas.</p>
         </section>
 
         <div className="table-header no-print">
           <input 
             type="text" 
-            placeholder="Buscar en tabla..." 
+            placeholder="Buscar..." 
             className="filter-bar"
             onChange={(e) => setFiltro(e.target.value)}
           />
           <div style={{display: 'flex', gap: '10px'}}>
-            <button onClick={handleLimpiarHoy} className="btn-clean">Limpiar Todo</button>
+            <button onClick={handleLimpiarHoy} className="btn-clean">Limpiar</button>
             <button onClick={() => window.print()} className="btn-print">Imprimir</button>
           </div>
         </div>
@@ -245,6 +308,11 @@ export default function RegistroAsistencia() {
 
                 if (!reg.salida && reg.motivo === "BENEFICIO") {
                   badgeLabel = "BENEFICIO"; badgeClass = "benefit";
+                }
+
+                if (reg.alertaSalida === "ANTICIPADA") {
+                    badgeLabel = "SALIDA ANTICIPADA";
+                    badgeClass = "retraso-badge";
                 }
 
                 return (

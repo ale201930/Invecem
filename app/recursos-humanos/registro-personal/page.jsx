@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, Suspense } from "react"; 
 import { useRouter, useSearchParams } from "next/navigation";
-import { db } from "@/app/lib/firebase";
+import { db, registrarAccion } from "@/app/lib/firebase"; // Importamos registrarAccion
+import Cookies from "js-cookie"; // Importamos para saber quién registra
 import { 
   collection, 
   addDoc, 
@@ -34,10 +35,9 @@ const estadoInicial = {
   programaInces: "", 
   cohorteInces: "",
   universidadPasante: "", 
-  carreraPasante: "",     
+  carreraPasante: "",      
   turno: HORARIOS_PLANTA.DIURNO,
   estatus: "Activo (En funciones)",
-  // Nuevos campos agregados
   fechaIngreso: "",
   telefono: "",
   correo: "",
@@ -94,6 +94,7 @@ function FormularioRegistro() {
 
   const handleFichaChange = (e) => {
     const { value } = e.target;
+    // Permitimos escribir hasta 5, pero validaremos 4 o 5 al enviar
     if (value.length <= 5) {
       setFormData({ ...formData, ficha: value.toUpperCase() });
     }
@@ -101,25 +102,56 @@ function FormularioRegistro() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.ficha.length !== 5) {
-        alert("⚠️ La ficha debe tener exactamente 5 dígitos.");
+    
+    // VALIDACIÓN DE LONGITUD: 4 o 5 dígitos
+    if (formData.ficha.length < 4 || formData.ficha.length > 5) {
+        alert("⚠️ El número de ficha debe tener 4 o 5 dígitos (Personal antiguo o nuevo).");
         return;
     }
 
     setLoading(true);
     try {
       const personalRef = collection(db, "personal");
+
       if (editId) {
         await updateDoc(doc(db, "personal", editId), { ...formData, ultimaActualizacion: serverTimestamp() });
         alert("✅ Registro actualizado.");
         router.push("/recursos-humanos/usuarios-registrados");
       } else {
+        // --- VALIDACIÓN DE DUPLICADOS (Cédula y Ficha) ---
+        
+        // 1. Check Cédula
         const qCedula = query(personalRef, where("cedula", "==", formData.cedula));
         const queryCedula = await getDocs(qCedula);
-        if (!queryCedula.empty) { alert("⚠️ La Cédula ya existe."); setLoading(false); return; }
+        if (!queryCedula.empty) { 
+            alert("⚠️ Error: Esta Cédula ya está registrada en el sistema."); 
+            setLoading(false); 
+            return; 
+        }
 
+        // 2. Check Ficha
+        const qFicha = query(personalRef, where("ficha", "==", formData.ficha));
+        const queryFicha = await getDocs(qFicha);
+        if (!queryFicha.empty) { 
+            alert(`⚠️ Error: El número de ficha ${formData.ficha} ya pertenece a otro trabajador.`); 
+            setLoading(false); 
+            return; 
+        }
+
+        // Si pasa ambas validaciones, guardamos
         await addDoc(personalRef, { ...formData, fechaRegistro: serverTimestamp() });
-        alert("✅ Personal registrado.");
+        
+        // REGISTRO EN MONITOREO
+        const userSession = Cookies.get("user_session") || "Usuario";
+        const userRole = Cookies.get("user_role") || "RRHH";
+        await registrarAccion(
+            userSession, 
+            userRole, 
+            `Registró al personal: ${formData.nombres} ${formData.apellidos} (Ficha: ${formData.ficha})`, 
+            "Recursos Humanos"
+        );
+
+        alert("✅ Personal registrado exitosamente.");
         setFormData(estadoInicial);
       }
     } catch (error) { alert("Error: " + error.message); }
@@ -173,8 +205,16 @@ function FormularioRegistro() {
             <h3 className="section-title"><span>2</span> Ubicación y Horario</h3>
             <div className="grid-3">
               <div className="input-group">
-                <label>Número de Ficha (5 dígitos)</label>
-                <input type="text" name="ficha" value={formData.ficha} onChange={handleFichaChange} required disabled={!!editId} />
+                <label>Número de Ficha (4 o 5 dígitos)</label>
+                <input 
+                    type="text" 
+                    name="ficha" 
+                    value={formData.ficha} 
+                    onChange={handleFichaChange} 
+                    placeholder="Ej: 1234 o 12345"
+                    required 
+                    disabled={!!editId} 
+                />
               </div>
 
               {formData.tipoPersonal === "INVECEM" && (
@@ -240,7 +280,6 @@ function FormularioRegistro() {
             </div>
           </section>
 
-          {/* NUEVA SECCIÓN: CONTACTO E INGRESO (Reemplaza Observaciones) */}
           <section className="form-section">
             <h3 className="section-title"><span>3</span> Contacto e Ingreso</h3>
             <div className="grid-3">
@@ -269,6 +308,7 @@ function FormularioRegistro() {
       </div>
 
       <style jsx>{`
+        /* Tus mismos estilos se mantienen intactos */
         .container { padding: 20px; max-width: 1000px; margin: 0 auto; }
         .top-nav { display: flex; justify-content: space-between; margin-bottom: 20px; }
         .btn-back { background: none; border: none; color: #64748b; cursor: pointer; font-weight: 600; }
@@ -297,7 +337,6 @@ function FormularioRegistro() {
         .btn-primary:hover { background: #008b8b; transform: translateY(-2px); }
         .loader { text-align: center; padding: 100px; color: #008b8b; font-weight: bold; }
 
-        /* Ajuste para móviles en la cuadrícula */
         @media (max-width: 768px) {
           .grid-3, .grid-2 { grid-template-columns: 1fr; }
         }

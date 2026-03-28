@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { auth, db } from "../lib/firebase"; // Importamos auth de nuevo
+import { auth, db } from "../lib/firebase"; 
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,12 @@ export default function Login() {
   const router = useRouter();
 
   useEffect(() => {
+    // --- NUEVO: LIMPIEZA DE SESIÓN AL CARGAR ---
+    // Esto evita que el sistema te mande directo al panel si quedó una sesión vieja pegada
+    Cookies.remove("user_session");
+    Cookies.remove("user_role");
+    Cookies.remove("user_name");
+
     const params = new URLSearchParams(window.location.search);
     if (params.get("error") === "unauthorized") {
       setError("⚠️ Debe iniciar sesión para acceder a este módulo.");
@@ -26,7 +32,7 @@ export default function Login() {
     setError(""); 
 
     try {
-      // --- INTENTO 1: BUSCAR EN TU COLECCIÓN MANUAL (USUARIOS NUEVOS) ---
+      // --- INTENTO 1: BUSCAR EN TU COLECCIÓN MANUAL (USUARIOS) ---
       const usuariosRef = collection(db, "usuarios");
       const q = query(usuariosRef, where("usuario", "==", usuario.trim()));
       const querySnapshot = await getDocs(q);
@@ -44,14 +50,12 @@ export default function Login() {
         }
       }
 
-      // --- INTENTO 2: BUSCAR EN FIREBASE AUTH (USUARIOS VIEJOS/CORREOS) ---
+      // --- INTENTO 2: BUSCAR EN FIREBASE AUTH ---
       try {
-        // Si el usuario viejo no tiene @gmail.com, se lo agregamos para probar
-        const correoParaAuth = usuario.includes("@") ? usuario : `${usuario}@gmail.com`;
+        const correoParaAuth = usuario.includes("@") ? usuario : `${usuario.trim()}@gmail.com`;
         const userCredential = await signInWithEmailAndPassword(auth, correoParaAuth, clave);
         const user = userCredential.user;
 
-        // Buscamos su rol en Firestore usando su UID (como lo tenías antes)
         const docRef = doc(db, "usuarios", user.uid);
         const docSnap = await getDoc(docRef);
 
@@ -59,7 +63,6 @@ export default function Login() {
           const data = docSnap.data();
           iniciarSesionExitosa(data.rol, usuario);
         } else {
-          // Si existe en Auth pero no tiene documento de rol, le damos uno por defecto o error
           setError("Usuario autenticado pero sin rol asignado.");
         }
         return;
@@ -67,7 +70,6 @@ export default function Login() {
         console.log("Fallo en el segundo intento (Auth):", authError.message);
       }
 
-      // Si llegó aquí, fallaron ambos métodos
       setError("Usuario o contraseña incorrectos");
 
     } catch (error) {
@@ -76,9 +78,10 @@ export default function Login() {
     }
   };
 
-  // Función auxiliar para no repetir código de redirección
   const iniciarSesionExitosa = (rolRaw, nombre) => {
-    const rol = rolRaw.toLowerCase();
+    // Normalizamos el rol para que coincida con las rutas
+    const rol = rolRaw.toLowerCase().trim();
+    
     Cookies.set("user_session", "active", { expires: 1 }); 
     Cookies.set("user_role", rol, { expires: 1 });
     Cookies.set("user_name", nombre, { expires: 1 });
@@ -94,7 +97,7 @@ export default function Login() {
     if (ruta) {
       router.push(ruta);
     } else {
-      setError("Rol no válido");
+      setError("Rol no válido: " + rol);
     }
   };
 
@@ -136,7 +139,6 @@ export default function Login() {
       </div>
 
       <style jsx global>{`
-        /* Se mantienen tus estilos originales intactos */
         .container {
           width: 100vw; height: 100vh; position: fixed; top: 0; left: 0;
           display: flex; justify-content: center; align-items: center;

@@ -1,21 +1,36 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Añadido useEffect
 import { useRouter } from "next/navigation"; 
 import Cookies from "js-cookie";
-import { auth } from "../lib/firebase"; // Cambiado a @ para evitar errores de ruta
+import { auth } from "../lib/firebase"; 
 import { signOut } from "firebase/auth";
 
 export default function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cargando, setCargando] = useState(true); // Estado para evitar parpadeo de contenido
   const router = useRouter();
+
+  // 🛡️ CANDADO DE SEGURIDAD (PROTECCIÓN DE RUTA)
+  useEffect(() => {
+    const session = Cookies.get("user_session");
+    const role = Cookies.get("user_role");
+
+    // Si no hay sesión o el rol NO es administrador, lo mandamos al login
+    if (!session || role !== "administrador") {
+      router.push("/login?error=unauthorized");
+    } else {
+      setCargando(false); // Si todo está bien, mostramos el panel
+    }
+  }, [router]);
 
   // 🚪 CERRAR SESIÓN FUNCIONAL
   const handleLogout = async () => {
     try {
       Cookies.remove("user_session");
       Cookies.remove("user_role");
+      Cookies.remove("user_name"); // Limpiamos también el nombre
       localStorage.removeItem("rol");
       localStorage.removeItem("user");
       await signOut(auth);
@@ -24,6 +39,9 @@ export default function Dashboard() {
       console.error("Error al cerrar sesión:", error);
     }
   };
+
+  // Si está validando la seguridad, no mostramos nada para evitar el "salto" de página
+  if (cargando) return null;
 
   return (
     <div className="admin-layout">
@@ -46,12 +64,11 @@ export default function Dashboard() {
           <li className="nav-item" onClick={() => router.push("/recursos-humanos")}>👥 Recursos Humanos</li>
           <li className="nav-item" onClick={() => router.push("/proteccion-fisica")}>🛡 Protección Física</li>
           
-          {/* BOTÓN DE USUARIOS ACTIVADO */}
           <li className="nav-item" onClick={() => router.push("/administrador/usuarios")}>
             👤 Usuarios
           </li>
+          <li className="nav-item" onClick={() => router.push("/administrador/monitoreo")}>📊 Monitoreo del sistema</li>
           
-          <li className="nav-item">📊 Monitoreo del sistema</li>
         </nav>
 
         <div className="logout">
@@ -63,7 +80,6 @@ export default function Dashboard() {
 
       {/* MAIN */}
       <main className="main-view">
-        {/* HEADER */}
         <div className="welcome-card">
           <div className="userInfo">
             <Image 
@@ -75,38 +91,12 @@ export default function Dashboard() {
             />
             <div>
               <h1>Bienvenido Administrador 👋</h1>
-              <p>Panel principal del sistema</p>
+              <p>Panel principal del sistema INVECEM</p>
             </div>
           </div>
         </div>
 
-        <h2 style={{ color: '#1a1a1a', marginBottom: '20px', fontSize: '1.2rem' }}>Acceso Directo a Módulos</h2>
-        <div className="stats-grid">
-          <div className="stat-card" onClick={() => router.push("/recursos-humanos")}>
-            <span style={{fontSize: "40px"}}>👥</span>
-            <h3>Recursos Humanos</h3>
-            <p style={{fontSize: "13px", color: "#666", fontWeight: "normal"}}>Gestión de personal y asistencia</p>
-          </div>
-
-          <div className="stat-card" onClick={() => router.push("/inspector")}>
-            <span style={{fontSize: "40px"}}>🛡️</span>
-            <h3>Inspector</h3>
-            <p style={{fontSize: "13px", color: "#666", fontWeight: "normal"}}>Control de accesos y visitas</p>
-          </div>
-
-          <div className="stat-card" onClick={() => router.push("/proteccion-fisica")}>
-            <span style={{fontSize: "40px"}}>🔒</span>
-            <h3>Protección Física</h3>
-            <p style={{fontSize: "13px", color: "#666", fontWeight: "normal"}}>Registro de contratas y externos</p>
-          </div>
-
-          {/* NUEVA TARJETA DE USUARIOS EN EL DASHBOARD */}
-          <div className="stat-card" onClick={() => router.push("/administrador/usuarios")}>
-            <span style={{fontSize: "40px"}}>👤</span>
-            <h3>Usuarios</h3>
-            <p style={{fontSize: "13px", color: "#666", fontWeight: "normal"}}>Administración de cuentas y permisos</p>
-          </div>
-        </div>
+        
 
       </main>
 

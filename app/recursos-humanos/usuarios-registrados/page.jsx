@@ -2,13 +2,16 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "../../lib/firebase"; 
+import { db, registrarAccion } from "../../lib/firebase"; 
+import Cookies from "js-cookie";
 import { 
   collection, 
   onSnapshot, 
   query, 
+  where,
   orderBy, 
   doc, 
+  getDoc,
   deleteDoc, 
   updateDoc 
 } from "firebase/firestore";
@@ -20,9 +23,6 @@ const ESTADOS_NOMINALES = [
   "Inactivo"
 ];
 
-// Clave de acceso para datos privados (Cámbiala según tu preferencia)
-const PIN_RRHH = "1234";
-
 export default function UsuariosRegistrados() {
   const router = useRouter();
   const [usuarios, setUsuarios] = useState([]);
@@ -30,6 +30,12 @@ export default function UsuariosRegistrados() {
   const [busqueda, setBusqueda] = useState("");
   const [isClient, setIsClient] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState("TODOS");
+
+  // --- ESTADOS PARA CLAVE MAESTRA DINÁMICA ---
+  const [claveMaestra, setClaveMaestra] = useState("");
+  const [confirmarVieja, setConfirmarVieja] = useState(""); // Nuevo: Para validar la anterior
+  const [nuevaClave, setNuevaClave] = useState("");
+  const [editandoClave, setEditandoClave] = useState(false);
 
   // --- ESTADOS PARA EL MODAL DE FECHAS ---
   const [showModal, setShowModal] = useState(false);
@@ -43,8 +49,9 @@ export default function UsuariosRegistrados() {
 
   useEffect(() => {
     setIsClient(true);
+    
     const q = query(collection(db, "personal"), orderBy("fechaRegistro", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribePersonal = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -52,13 +59,58 @@ export default function UsuariosRegistrados() {
       setUsuarios(docs);
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    const unsubscribeClave = onSnapshot(doc(db, "configuracion", "seguridad"), (doc) => {
+      if (doc.exists()) {
+        setClaveMaestra(doc.data().claveExpedientes);
+      }
+    });
+
+    return () => {
+      unsubscribePersonal();
+      unsubscribeClave();
+    };
   }, []);
 
-  // --- FUNCIÓN PARA VER HISTORIAL CON PROTECCIÓN ---
+  // --- FUNCIÓN PARA CAMBIAR LA CLAVE MAESTRA CON VALIDACIÓN DE ANTERIOR ---
+  const actualizarClaveMaestra = async () => {
+    // 1. Validar que los campos no estén vacíos
+    if (!confirmarVieja || !nuevaClave) {
+      alert("⚠️ Debes completar ambos campos.");
+      return;
+    }
+
+    // 2. Validar que la clave vieja coincida con la de la DB
+    if (confirmarVieja !== claveMaestra) {
+      alert("❌ La clave actual es incorrecta. No tienes permiso para realizar el cambio.");
+      return;
+    }
+
+    // 3. Validar longitud de la nueva
+    if (nuevaClave.length < 4) {
+      alert("⚠️ La nueva clave debe tener al menos 4 caracteres.");
+      return;
+    }
+
+    try {
+      const docRef = doc(db, "configuracion", "seguridad");
+      await updateDoc(docRef, { claveExpedientes: nuevaClave });
+      
+      const userSession = Cookies.get("user_session") || "Admin RRHH";
+      await registrarAccion(userSession, "Recursos Humanos", "Actualizó la Clave Maestra de Expedientes", "Seguridad");
+      
+      alert("🔐 Clave Maestra actualizada correctamente.");
+      setNuevaClave("");
+      setConfirmarVieja("");
+      setEditandoClave(false);
+    } catch (error) {
+      alert("Error al actualizar clave: " + error.message);
+    }
+  };
+
   const manejarAccesoExpediente = (user) => {
     const pin = prompt("🔐 SEGURIDAD INVECEM: Ingrese clave de Recursos Humanos para ver datos privados:");
-    if (pin === PIN_RRHH) {
+    if (pin === claveMaestra) {
       setUsuarioExpediente(user);
       setShowExpediente(true);
     } else if (pin !== null) {
@@ -184,8 +236,7 @@ export default function UsuariosRegistrados() {
 
   return (
     <div className="container">
-      
-      {/* --- MODAL EXPEDIENTE (HISTORIAL) --- */}
+      {/* ... (Modales se mantienen iguales) ... */}
       {showExpediente && usuarioExpediente && (
         <div className="modal-overlay">
           <div className="modal-content shadow-relief border-turquesa-full">
@@ -228,7 +279,6 @@ export default function UsuariosRegistrados() {
         </div>
       )}
 
-      {/* --- MODAL DE FECHAS (UI) --- */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content shadow-relief">
@@ -258,9 +308,42 @@ export default function UsuariosRegistrados() {
         <button className="btn-back" onClick={() => router.push("/recursos-humanos")}>
           ← Volver al Panel
         </button>
-        <div className="title-wrapper">
-          <h1 className="title">Base de Datos de Personal</h1>
-          <div className="total-badge">Registros encontrados: {usuariosFiltrados.length}</div>
+        <div className="title-wrapper" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px' }}>
+          <div>
+            <h1 className="title">Base de Datos de Personal</h1>
+            <div className="total-badge">Registros encontrados: {usuariosFiltrados.length}</div>
+          </div>
+
+          {/* --- SECCIÓN MEJORADA: GESTIÓN DE CLAVE MAESTRA CON VALIDACIÓN --- */}
+          <div className="seguridad-box shadow-relief no-print">
+             <label className="exp-label">🔐 Gestión Clave de Expedientes</label>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                {editandoClave ? (
+                  <>
+                    <input 
+                      type="password" 
+                      placeholder="Clave ACTUAL..." 
+                      className="clave-input full-width"
+                      value={confirmarVieja}
+                      onChange={(e) => setConfirmarVieja(e.target.value)}
+                    />
+                    <input 
+                      type="password" 
+                      placeholder="Nueva Clave..." 
+                      className="clave-input full-width"
+                      value={nuevaClave}
+                      onChange={(e) => setNuevaClave(e.target.value)}
+                    />
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <button className="btn-save-clave" style={{ flex: 1 }} onClick={actualizarClaveMaestra}>Confirmar Cambio</button>
+                      <button className="btn-cancel-clave" onClick={() => {setEditandoClave(false); setConfirmarVieja(""); setNuevaClave("");}}>X</button>
+                    </div>
+                  </>
+                ) : (
+                  <button className="btn-edit-clave" onClick={() => setEditandoClave(true)}>Configurar Clave Maestra</button>
+                )}
+             </div>
+          </div>
         </div>
       </div>
 
@@ -284,11 +367,6 @@ export default function UsuariosRegistrados() {
             <button className="btn-pdf" onClick={generarPDF}>Descargar PDF</button>
             <button className="btn-print" onClick={() => window.print()}>Imprimir Reporte</button>
         </div>
-      </div>
-
-      <div className="print-only-header">
-          <h1>REPORTE DE PERSONAL {filtroTipo} - INVECEM</h1>
-          <p>Generado el: {new Date().toLocaleDateString()}</p>
       </div>
 
       <div className="table-card shadow-relief">
@@ -329,9 +407,6 @@ export default function UsuariosRegistrados() {
                           <option key={estado} value={estado}>{estado}</option>
                         ))}
                       </select>
-                      {user.fechaRegreso && (
-                        <div style={{fontSize: '9px', marginTop: '4px', color: '#64748b'}}>Regreso: {user.fechaRegreso}</div>
-                      )}
                     </td>
                     <td className="actions-cell no-print">
                       <button className="btn-historial" onClick={() => manejarAccesoExpediente(user)}>Historial</button>
@@ -347,75 +422,61 @@ export default function UsuariosRegistrados() {
       </div>
 
       <style jsx>{`
-        /* --- ESTILOS DEL MODAL --- */
-        .modal-overlay {
-          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-          background: rgba(15, 23, 42, 0.85); display: flex; align-items: center; justify-content: center; z-index: 1000;
-        }
-        .modal-content {
-          background: white; padding: 30px; border-radius: 15px; width: 450px;
-          border: 1px solid #e2e8f0;
-        }
-        .border-turquesa-full { border: 2px solid #008b8b; }
-        .modal-header-exp { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
-        .modal-title { color: #0f172a; margin: 0; font-weight: 900; }
-        .modal-subtitle { color: #64748b; margin-bottom: 25px; }
-        
-        /* Estilos Expediente */
-        .expediente-body { display: flex; flex-direction: column; gap: 20px; }
-        .exp-label { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; margin: 0; }
-        .exp-value { font-size: 16px; font-weight: 700; color: #0f172a; margin: 5px 0 0; }
-        .exp-value-highlight { font-size: 16px; font-weight: 800; color: #008b8b; margin: 5px 0 0; }
-        .exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .exp-info-box { background: #fff7ed; border: 1px dashed #fb923c; padding: 15px; border-radius: 8px; font-size: 11px; color: #9a3412; font-weight: 600; line-height: 1.4; }
+  .container { padding: 20px; max-width: 1450px; margin: 0 auto; background-color: #f8fafc; min-height: 100vh; font-family: sans-serif; }
+  .header-section { margin-bottom: 20px; border-left: 5px solid #008b8b; padding-left: 15px; }
+  .btn-back { background: none; border: none; color: #64748b; cursor: pointer; margin-bottom: 10px; font-weight: 700; }
+  .title { color: #0f172a; font-size: 26px; font-weight: 900; }
+  .total-badge { font-weight: 700; color: #008b8b; background: #ccf2f2; padding: 6px 14px; border-radius: 20px; font-size: 12px; display: inline-block; }
+  
+  /* ESTILOS DE SEGURIDAD */
+  .seguridad-box { background: white; padding: 12px; border-radius: 12px; border: 2px solid #008b8b; width: 280px; }
+  .clave-input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; outline-color: #008b8b; }
+  .full-width { width: 100%; }
+  .btn-edit-clave { background: #0f172a; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; width: 100%; }
+  .btn-save-clave { background: #008b8b; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; }
+  .btn-cancel-clave { background: #fee2e2; color: #ef4444; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-        .input-group { margin-bottom: 15px; display: flex; flex-direction: column; }
-        .input-group label { font-weight: 800; font-size: 12px; margin-bottom: 5px; color: #0f172a; }
-        .input-group input { padding: 12px; border: 2px solid #f1f5f9; border-radius: 8px; font-weight: 700; }
-        .modal-footer { display: flex; gap: 10px; margin-top: 25px; }
-        .btn-confirm { background: #008b8b; color: white; border: none; padding: 12px; border-radius: 8px; flex: 1; font-weight: 800; cursor: pointer; }
-        .btn-cancel-modal { background: #f1f5f9; color: #64748b; border: none; padding: 12px; border-radius: 8px; flex: 1; font-weight: 800; cursor: pointer; }
-
-        /* --- TUS ESTILOS ORIGINALES --- */
-        .container { padding: 20px; max-width: 1450px; margin: 0 auto; background-color: #f8fafc; min-height: 100vh; font-family: sans-serif; }
-        .header-section { margin-bottom: 20px; border-left: 5px solid #008b8b; padding-left: 15px; }
-        .btn-back { background: none; border: none; color: #64748b; cursor: pointer; margin-bottom: 10px; font-weight: 700; }
-        .title { color: #0f172a; font-size: 26px; font-weight: 900; }
-        .total-badge { font-weight: 700; color: #008b8b; background: #ccf2f2; padding: 6px 14px; border-radius: 20px; font-size: 12px; display: inline-block; }
-        .filters-bar { display: flex; gap: 15px; margin-bottom: 25px; align-items: center; background: white; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; }
-        .actions-buttons { display: flex; gap: 10px; }
-        .btn-group { display: flex; background: #f1f5f9; padding: 5px; border-radius: 10px; }
-        .btn-toggle { border: none; padding: 10px 22px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 800; color: #64748b; }
-        .btn-toggle.active { background: #008b8b; color: white; }
-        .search-input { flex-grow: 1; padding: 12px; border: 2px solid #f1f5f9; border-radius: 10px; outline: none; }
-        .btn-pdf { background: #0f172a; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; transition: 0.3s; }
-        .btn-print { background: #e30613; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; transition: 0.3s; }
-        .table-card { background: white; border-radius: 15px; border: 1px solid #e2e8f0; }
-        .shadow-relief { box-shadow: 10px 10px 0px #008b8b; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f8fafc; padding: 18px 15px; text-align: left; color: #1e293b; font-size: 11px; text-transform: uppercase; border-bottom: 3px solid #008b8b; }
-        td { padding: 16px 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
-        .name-text { font-weight: 700; text-transform: uppercase; }
-        .cargo-text { font-weight: 700; color: #008b8b; }
-        .badge-id { padding: 5px 10px; border-radius: 6px; font-size: 10px; font-weight: 900; background: #f8fafc; border: 1px solid #e2e8f0; }
-        .status-select { padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; width: 180px; }
-        .border-turquesa { border-left: 6px solid #008b8b; }
-        .border-rojo { border-left: 6px solid #e30613; }
-        .actions-cell { display: flex; gap: 10px; }
-        
-        .btn-historial { background: #f0fdfa; color: #008b8b; border: 1px solid #99f6e4; padding: 6px 12px; border-radius: 8px; font-weight: 800; cursor: pointer; }
-        .btn-edit { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; padding: 6px 12px; border-radius: 8px; font-weight: 800; cursor: pointer; }
-        .btn-delete { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; padding: 6px 12px; border-radius: 8px; font-weight: 800; cursor: pointer; }
-        
-        .print-only-header, .print-status { display: none; }
-        @media print {
-          .no-print { display: none !important; }
-          .container { background: white; padding: 0; }
-          .shadow-relief { box-shadow: none; border: 1px solid #000; }
-          .print-only-header { display: block; text-align: center; margin-bottom: 20px; color: #008b8b; }
-          .print-status { display: block; font-weight: bold; }
-        }
-      `}</style>
+  .filters-bar { display: flex; gap: 15px; margin-bottom: 25px; align-items: center; background: white; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; }
+  .btn-group { display: flex; background: #f1f5f9; padding: 5px; border-radius: 10px; }
+  .btn-toggle { border: none; padding: 10px 22px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 800; color: #64748b; }
+  .btn-toggle.active { background: #008b8b; color: white; }
+  .search-input { flex-grow: 1; padding: 12px; border: 2px solid #f1f5f9; border-radius: 10px; outline: none; }
+  .btn-pdf { background: #0f172a; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; }
+  .btn-print { background: #e30613; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; }
+  .table-card { background: white; border-radius: 15px; border: 1px solid #e2e8f0; }
+  .shadow-relief { box-shadow: 10px 10px 0px #008b8b; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f8fafc; padding: 18px 15px; text-align: left; color: #1e293b; font-size: 11px; text-transform: uppercase; border-bottom: 3px solid #008b8b; }
+  td { padding: 16px 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+  .name-text { font-weight: 700; text-transform: uppercase; }
+  .cargo-text { font-weight: 700; color: #008b8b; }
+  .badge-id { padding: 5px 10px; border-radius: 6px; font-size: 10px; font-weight: 900; background: #f8fafc; border: 1px solid #e2e8f0; }
+  .status-select { padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; width: 180px; }
+  .border-turquesa { border-left: 6px solid #008b8b; }
+  .border-rojo { border-left: 6px solid #e30613; }
+  .actions-cell { display: flex; gap: 10px; }
+  .btn-historial { background: #f0fdfa; color: #008b8b; border: 1px solid #99f6e4; padding: 6px 12px; border-radius: 8px; font-weight: 800; cursor: pointer; }
+  .btn-edit { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; padding: 6px 12px; border-radius: 8px; font-weight: 800; cursor: pointer; }
+  .btn-delete { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; padding: 6px 12px; border-radius: 8px; font-weight: 800; cursor: pointer; }
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .modal-content { background: white; padding: 30px; border-radius: 15px; width: 450px; }
+  
+  /* --- REPARACIÓN DE ESTILOS DEL HISTORIAL (EXPEDIENTE) --- */
+  .modal-header-exp { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #008b8b; padding-bottom: 15px; margin-bottom: 20px; }
+  .border-turquesa-full { border: 2px solid #008b8b !important; }
+  .expediente-body { display: flex; flex-direction: column; gap: 15px; }
+  .exp-section { background: #f8fafc; padding: 12px; border-radius: 8px; border-left: 4px solid #008b8b; }
+  .exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .exp-grid > div { background: #f8fafc; padding: 12px; border-radius: 8px; border-bottom: 3px solid #e2e8f0; }
+  .exp-label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px; display: block; }
+  .exp-value { font-size: 15px; font-weight: 700; color: #1e293b; margin: 0; }
+  .exp-value-highlight { font-size: 15px; font-weight: 800; color: #008b8b; margin: 0; }
+  .exp-info-box { margin-top: 10px; background: #fff7ed; border: 1px dashed #fb923c; padding: 10px; border-radius: 8px; }
+  .exp-info-box p { color: #c2410c; font-size: 11px; font-weight: 600; margin: 0; text-align: center; }
+  .btn-confirm { background: #008b8b; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+  .modal-footer { margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px; }
+  .btn-cancel-modal { background: #f1f5f9; color: #64748b; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 800; cursor: pointer; }
+`}</style>
     </div>
   );
 }

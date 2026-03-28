@@ -29,12 +29,10 @@ export default function AsistenciaDiariaRRHH() {
   const [fechaHoyStr, setFechaHoyStr] = useState("");
   const [resumen, setResumen] = useState({ presentes: 0, inasistencias: 0, vacaciones: 0, reposo: 0, total: 0 });
 
-  // --- GESTIÓN DEL CÓDIGO MAESTRO (CONECTADO A FIREBASE) ---
   const [masterPin, setMasterPin] = useState("1234");
   const [haySolicitudPendiente, setHaySolicitudPendiente] = useState(false);
 
   useEffect(() => {
-    // Leer PIN desde Firebase al cargar para que esté sincronizado
     const fetchConfig = async () => {
       const configRef = doc(db, "configuracion", "seguridad");
       const docSnap = await getDoc(configRef);
@@ -51,17 +49,14 @@ export default function AsistenciaDiariaRRHH() {
       alert("❌ Código incorrecto. No puede realizar cambios.");
       return;
     }
-
     const newPin = prompt("Ingrese el NUEVO código maestro:");
     if (!newPin || newPin.length < 4) {
       alert("❌ El código debe tener al menos 4 dígitos.");
       return;
     }
-
     const confirmPin = prompt("Confirme el NUEVO código maestro:");
     if (newPin === confirmPin) {
       try {
-        // Guardar en LocalStorage Y Firebase para que el Inspector lo vea
         setMasterPin(newPin);
         localStorage.setItem("INVECEM_MASTER_PIN", newPin);
         await setDoc(doc(db, "configuracion", "seguridad"), { pinMaestro: newPin });
@@ -74,13 +69,17 @@ export default function AsistenciaDiariaRRHH() {
     }
   };
 
-  // --- FUNCIÓN PARA AUTORIZAR DESDE RRHH ---
+  // --- CORRECCIÓN 1: AUTORIZAR Y DAR SALIDA AUTOMÁTICA ---
   const autorizarSalida = async (registroId) => {
     const pin = prompt("AUTORIZACIÓN: Ingrese el Código Maestro para permitir la salida:");
     if (pin === masterPin) {
       const docRef = doc(db, "asistencias", registroId);
-      await updateDoc(docRef, { solicitudSalida: "APROBADA" });
-      alert("✅ Salida autorizada correctamente.");
+      await updateDoc(docRef, { 
+        solicitudSalida: "APROBADA",
+        enPlanta: false, // Se marca fuera de planta automáticamente
+        salida: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) // Registra hora de salida
+      });
+      alert("✅ Salida autorizada y registrada correctamente.");
     } else {
       alert("❌ Código Maestro inválido.");
     }
@@ -117,8 +116,6 @@ export default function AsistenciaDiariaRRHH() {
     const unsubscribeAsist = onSnapshot(qAsistencias, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAsistencias(lista);
-      
-      // Chequear si hay alguien esperando autorización para activar el titileo
       const pendientes = lista.some(a => a.alertaSalida === "ANTICIPADA" && a.solicitudSalida === "PENDIENTE");
       setHaySolicitudPendiente(pendientes);
     });
@@ -129,20 +126,27 @@ export default function AsistenciaDiariaRRHH() {
     };
   }, []);
 
-  // ... (Mantenemos lógica de CEREBRO AUTOMÁTICO y RESUMEN igual)
+  // --- CORRECCIÓN 2: LÓGICA DE AUTO-ACTIVACIÓN MEJORADA ---
   useEffect(() => {
     if (nominaTotalData.length > 0) {
       const hoy = new Date();
       hoy.setHours(0, 0, 0, 0);
+
       nominaTotalData.forEach(async (persona) => {
         if ((persona.estatus === "Vacaciones" || persona.estatus === "Reposo Médico") && persona.fechaRegreso) {
           const partes = persona.fechaRegreso.split("-");
           const fechaRetorno = new Date(partes[0], partes[1] - 1, partes[2]);
           fechaRetorno.setHours(0, 0, 0, 0);
+
           if (hoy >= fechaRetorno) {
             const personaRef = doc(db, "personal", persona.id);
             try {
-              await updateDoc(personaRef, { estatus: "Activo (En funciones)", fechaRegreso: null });
+              await updateDoc(personaRef, { 
+                estatus: "Activo (En funciones)", 
+                fechaSalida: null, 
+                fechaRegreso: null 
+              });
+              console.log(`Auto-activación ejecutada para: ${persona.nombres}`);
             } catch (error) { console.error("Error en auto-activación:", error); }
           }
         }
@@ -244,7 +248,6 @@ export default function AsistenciaDiariaRRHH() {
         <div className="date-box">{fechaHoyStr}</div>
       </header>
 
-      {/* ... (Resto de la UI: Tabs y Resumen Grid igual) ... */}
       <div className="filter-tabs no-print">
         <button className={filtroTipo === "TODOS" ? "active" : ""} onClick={() => {setFiltroTipo("TODOS"); setFiltroEstadoClic("PRESENTES");}}>TODOS</button>
         <button className={filtroTipo === "INVECEM" ? "active" : ""} onClick={() => {setFiltroTipo("INVECEM"); setFiltroEstadoClic("PRESENTES");}}>TRABAJADORES INVECEM</button>
@@ -276,7 +279,6 @@ export default function AsistenciaDiariaRRHH() {
       </section>
 
       <div className="table-container shadow-relief">
-        {/* ... (Table Actions igual) ... */}
         <div className="table-header-info">
           <h3 className="view-title">Filtrado por: <span className="text-turquesa">{filtroEstadoClic}</span></h3>
         </div>
@@ -317,7 +319,17 @@ export default function AsistenciaDiariaRRHH() {
                   </td>
                   <td className="hora-cell">{reg.entrada || "--:--"}</td>
                   <td className="hora-cell">{reg.salida || "--:--"}</td>
-                  <td><span className={`badge ${estadoData.clase}`}>{estadoData.texto}</span></td>
+                  <td>
+                    <div style={{display: 'flex', flexDirection: 'column'}}>
+                      <span className={`badge ${estadoData.clase}`}>{estadoData.texto}</span>
+                      {/* --- CORRECCIÓN 3: MUESTRA DE FECHAS EN TABLA --- */}
+                      {(reg.estatus === "Vacaciones" || reg.estatus === "Reposo Médico") && reg.fechaRegreso && (
+                        <span style={{fontSize: '9px', fontWeight: '900', color: '#64748b', marginTop: '4px'}}>
+                          📅 Regreso: {reg.fechaRegreso}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td>
                     {esPendiente && (
                       <button className="btn-autorizar" onClick={() => autorizarSalida(reg.regId)}>
@@ -333,7 +345,6 @@ export default function AsistenciaDiariaRRHH() {
       </div>
 
       <style jsx>{`
-        /* ... TUS ESTILOS ORIGINALES ... */
         .container { padding: 20px; max-width: 1400px; margin: 0 auto; font-family: sans-serif; background-color: #f8fafc; min-height: 100vh; }
         .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .btn-back { background: none; border: none; color: #64748b; cursor: pointer; font-weight: 800; }
@@ -375,15 +386,12 @@ export default function AsistenciaDiariaRRHH() {
         .cargo-text-table { font-weight: 800; color: #008b8b; font-size: 12px; }
         .area-text-table { font-weight: 600; color: #94a3b8; font-size: 10px; }
         .hora-cell { font-family: monospace; font-weight: 900; color: #1e293b; font-size: 15px; }
-        .return-date { font-weight: 900; color: #3b82f6; }
         .badge { padding: 6px 14px; border-radius: 8px; font-weight: 900; font-size: 10px; text-transform: uppercase; }
         .puntual { background: #dcfce7; color: #166534; }
         .retraso { background: #fef3c7; color: #92400e; }
         .falta { background: #fee2e2; color: #991b1b; }
         .vacaciones-status { background: #dbeafe; color: #1e40af; }
         .reposo-status { background: #fef3c7; color: #92400e; }
-
-        /* --- NUEVOS ESTILOS DE ALERTA --- */
         .btn-alert-blink { animation: alert-pulse 1s infinite alternate; }
         .text-blink-red { animation: text-pulse 1.5s infinite; }
         .blink-alerta { animation: opacity-pulse 0.8s infinite; }

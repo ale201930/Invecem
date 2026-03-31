@@ -15,8 +15,6 @@ export default function Login() {
   const router = useRouter();
 
   useEffect(() => {
-    // --- NUEVO: LIMPIEZA DE SESIÓN AL CARGAR ---
-    // Esto evita que el sistema te mande directo al panel si quedó una sesión vieja pegada
     Cookies.remove("user_session");
     Cookies.remove("user_role");
     Cookies.remove("user_name");
@@ -32,7 +30,6 @@ export default function Login() {
     setError(""); 
 
     try {
-      // --- INTENTO 1: BUSCAR EN TU COLECCIÓN MANUAL (USUARIOS) ---
       const usuariosRef = collection(db, "usuarios");
       const q = query(usuariosRef, where("usuario", "==", usuario.trim()));
       const querySnapshot = await getDocs(q);
@@ -50,7 +47,6 @@ export default function Login() {
         }
       }
 
-      // --- INTENTO 2: BUSCAR EN FIREBASE AUTH ---
       try {
         const correoParaAuth = usuario.includes("@") ? usuario : `${usuario.trim()}@gmail.com`;
         const userCredential = await signInWithEmailAndPassword(auth, correoParaAuth, clave);
@@ -79,7 +75,6 @@ export default function Login() {
   };
 
   const iniciarSesionExitosa = (rolRaw, nombre) => {
-    // Normalizamos el rol para que coincida con las rutas
     const rol = rolRaw.toLowerCase().trim();
     
     Cookies.set("user_session", "active", { expires: 1 }); 
@@ -102,7 +97,7 @@ export default function Login() {
   };
 
   return (
-    <div className="container">
+    <div className="full-screen-layout">
       <div className="login-box">
         <h2>Login del sistema</h2>
         <form onSubmit={manejarLogin}>
@@ -139,27 +134,109 @@ export default function Login() {
       </div>
 
       <style jsx global>{`
-        .container {
-          width: 100vw; height: 100vh; position: fixed; top: 0; left: 0;
-          display: flex; justify-content: center; align-items: center;
-          background-image: url("/img/fondo.jpg");
-          background-size: cover; background-position: center; 
+        html, body, #__next, main {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          overflow: hidden !important;
         }
+
+        .full-screen-layout {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          display: flex !important;
+          justify-content: center !important;
+          align-items: center !important;
+          z-index: 9999;
+          background: url("/img/fondo.jpg") no-repeat center center fixed !important;
+          background-size: cover !important;
+        }
+
         .login-box {
           background: rgba(255, 255, 255, 0.15);
-          backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-          padding: 40px; border-radius: 18px; width: 380px;
-          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4); text-align: center;
-          border: 1px solid rgba(255, 255, 255, 0.2);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          padding: 40px;
+          border-radius: 20px;
+          width: 380px;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+          text-align: center;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          color: white;
         }
-        .login-box h2 { margin-bottom: 25px; font-size: 26px; font-weight: 800; }
+
+        .login-box h2 { 
+          margin-bottom: 25px; 
+          font-size: 26px; 
+          font-weight: 800;
+          text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
         .input-group { text-align: left; margin-bottom: 20px; }
-        .input-group label { display: block; font-size: 14px; margin-bottom: 5px; font-weight: 700; }
-        .input-group input { width: 100%; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.95); }
-        button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #e30613; color: #fff; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { background: #ff0000; transform: scale(1.02); }
-        .error-msg { background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; color: #e30613; font-size: 13px; font-weight: bold; margin-top: 15px; border: 1px solid #e30613; }
-        .footer-text { margin-top: 20px; font-size: 12px; font-weight: 600; }
+        .input-group label { 
+          display: block; 
+          font-size: 14px; 
+          margin-bottom: 5px; 
+          font-weight: 700;
+          text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        
+        .input-group input { 
+          width: 100%; 
+          padding: 12px; 
+          border: none; 
+          border-radius: 10px; 
+          background: rgba(255, 255, 255, 0.95); 
+          box-sizing: border-box;
+          font-size: 16px;
+          color: #333;
+        }
+
+        button { 
+          width: 100%; 
+          padding: 14px; 
+          border: none; 
+          border-radius: 10px; 
+          background: #e30613 !important; 
+          color: #fff; 
+          font-weight: 800; 
+          text-transform: uppercase;
+          cursor: pointer; 
+          transition: all 0.2s ease;
+          box-shadow: 0 5px 0px #b0050f, 0 8px 20px rgba(227, 6, 19, 0.4);
+        }
+
+        button:hover { 
+          background: #ff0000 !important; 
+          transform: translateY(-2px); 
+          box-shadow: 0 7px 0px #b0050f, 0 10px 25px rgba(227, 6, 19, 0.5);
+        }
+
+        button:active { 
+          transform: translateY(3px); 
+          box-shadow: 0 2px 0px #b0050f; 
+        }
+
+        .error-msg {
+          margin-top: 15px;
+          padding: 10px;
+          background: rgba(255, 255, 255, 0.9);
+          border-left: 5px solid #e30613;
+          color: #e30613;
+          font-weight: bold;
+          border-radius: 4px;
+        }
+
+        .footer-text { 
+          margin-top: 25px; 
+          font-size: 11px; 
+          font-weight: 600; 
+          color: rgba(255,255,255,0.8);
+        }
       `}</style>
     </div>
   );

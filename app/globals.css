@@ -25,16 +25,26 @@
   box-sizing: border-box;
 }
 
+/* FIX CRÍTICO: Forzamos a html y body a no tener espacio extra.
+   Cambiamos min-height por height 100% para evitar saltos.
+*/
 html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  min-height: 100vh;
-  /* Eliminamos el background fijo de aquí para que no tape tus imágenes */
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden; 
+  overflow: hidden; /* Evita scrolls fantasmales en el login */
+}
+
+/* Aseguramos que el contenedor de Next.js no limite el tamaño */
+#__next, main {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* --- UTILIDADES DE DISEÑO --- */
@@ -65,16 +75,23 @@ input, select, textarea {
   gap: 1.5rem;
 }
 
-/* --- CLASE MAESTRA PARA LOGIN Y PANELES --- */
+/* --- CLASE MAESTRA PARA LOGIN (SOLUCIÓN FINAL) --- */
 .full-screen-layout {
-  margin: 0 !important;
-  padding: 0 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  overflow: hidden !important;
-  position: fixed;
-  top: 0;
-  left: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 9999;
+  
+  /* Aquí configuramos la imagen para que sea total */
+  background: url("/img/fondo.jpg") no-repeat center center fixed !important;
+  background-size: cover !important;
 }
 
 .hide-mobile {

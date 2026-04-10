@@ -4,6 +4,7 @@
   --foreground: #171717;
   --primary-blue: #003366;
   --secondary-orange: #f97316;
+  --bg-light: #f8fafc;
 }
 
 @theme inline {
@@ -19,32 +20,35 @@
   }
 }
 
-/* --- RESET GLOBAL PARA PANTALLA COMPLETA --- */
+/* --- RESET GLOBAL --- */
 
 * {
   box-sizing: border-box;
 }
 
-/* FIX CRÍTICO: Forzamos a html y body a no tener espacio extra.
-   Cambiamos min-height por height 100% para evitar saltos.
-*/
 html, body {
   margin: 0 !important;
   padding: 0 !important;
   width: 100% !important;
-  height: 100% !important;
+  /* CAMBIO CLAVE: Cambiamos height 100% por min-height para que pueda crecer */
+  min-height: 100% !important; 
   color: var(--foreground);
+  background-color: var(--bg-light);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden; /* Evita scrolls fantasmales en el login */
+  
+  /* CAMBIO CLAVE: Quitamos el hidden. 'clip' evita el rebote lateral en móviles 
+     pero permite el scroll vertical (arriba/abajo) */
+  overflow-x: hidden; 
+  overflow-y: auto; 
 }
 
-/* Aseguramos que el contenedor de Next.js no limite el tamaño */
+/* Aseguramos que el contenedor de Next.js permita el crecimiento */
 #__next, main {
   margin: 0 !important;
   padding: 0 !important;
   width: 100% !important;
-  height: 100% !important;
+  min-height: 100vh !important;
 }
 
 /* --- UTILIDADES DE DISEÑO --- */
@@ -53,29 +57,32 @@ html, body {
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 1rem;
 }
 
+/* Esta clase es la que hará que tus tablas de 500 personas funcionen en el celular */
 .table-container {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: auto; /* Scroll de izquierda a derecha en móviles */
   white-space: nowrap;
   -webkit-overflow-scrolling: touch;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
+  background: white;
 }
 
-/* Evita zoom molesto en iPhone */
+/* Evita zoom molesto en iPhone al tocar campos de texto */
 input, select, textarea {
   font-size: 16px !important;
 }
 
 .grid-responsive {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
 }
 
-/* --- CLASE MAESTRA PARA LOGIN (SOLUCIÓN FINAL) --- */
+/* --- CLASE PARA LOGIN (SE MANTIENE FIJA) --- */
 .full-screen-layout {
   position: fixed !important;
   top: 0 !important;
@@ -88,14 +95,33 @@ input, select, textarea {
   justify-content: center !important;
   align-items: center !important;
   z-index: 9999;
-  
-  /* Aquí configuramos la imagen para que sea total */
   background: url("/img/fondo.jpg") no-repeat center center fixed !important;
   background-size: cover !important;
+  overflow: hidden; /* Aquí sí bloqueamos el scroll porque es el login */
 }
 
+/* Utilidad para esconder cosas en móvil */
 .hide-mobile {
   @media (max-width: 768px) {
     display: none;
   }
+}
+
+/* Scrollbar estética para el sistema */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-blue);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #002244;
 }

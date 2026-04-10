@@ -16,25 +16,28 @@ export const metadata = {
   description: "Sistema interno de control de personal",
 };
 
-// CRÍTICO: Esto le dice a los celulares que no hagan zoom out automático
+// Esto es vital para el responsive en celulares
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1, // Evita que el usuario haga zoom por error y rompa el diseño
 };
-
 
 export default function RootLayout({ children }) {
   return (
     <html
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      style={{ margin: 0, padding: 0, height: '100%' }}
     >
-      <body className="m-0 p-0 min-h-screen overflow-x-hidden">
-        {/* Quitamos el bg-slate-50 y el flex-col que estorbaban */}
-        <main>
-          {children}
-        </main>
+      <body className="m-0 p-0 min-h-screen bg-gray-50 text-gray-900 overflow-x-hidden selection:bg-blue-100">
+        {/* El div 'flex flex-col' asegura que si tienes un Navbar arriba, 
+            el contenido de abajo ocupe el resto y permita el scroll natural.
+        */}
+        <div className="flex flex-col min-h-screen">
+          <main className="flex-grow w-full">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );

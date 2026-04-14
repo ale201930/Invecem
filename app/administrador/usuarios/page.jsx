@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { db, auth } from "../../lib/firebase"; 
 import { 
   collection, 
-  addDoc, 
   query, 
   onSnapshot, 
   doc, 
+  setDoc, // Usamos setDoc para vincular con el UID de Auth
   updateDoc,
   deleteDoc
 } from "firebase/firestore";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 
 export default function GestionUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
@@ -23,17 +24,14 @@ export default function GestionUsuarios() {
   
   const router = useRouter();
 
-  // 1. CARGA EN TIEMPO REAL - CORREGIDA
+  // 1. CARGA EN TIEMPO REAL
   useEffect(() => {
-    // ELIMINAMOS el orderBy para que no filtre a los usuarios que no tienen fecha
     const usuariosRef = collection(db, "usuarios");
     const q = query(usuariosRef); 
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const docs = [];
       querySnapshot.forEach((doc) => {
-        // Agregamos un console.log para que puedas ver en la consola del navegador cuántos llegan
-        console.log("Cargando usuario:", doc.id);
         docs.push({ id: doc.id, ...doc.data() });
       });
       setUsuarios(docs);
@@ -44,30 +42,49 @@ export default function GestionUsuarios() {
     return () => unsubscribe();
   }, []);
 
-  // 2. GUARDAR NUEVO USUARIO
+  // 2. GUARDAR NUEVO USUARIO (CORREGIDO: AUTH + FIRESTORE)
   const handleSubmit = async (e) => {
     e.preventDefault();
     const nombreLimpio = nombre.trim();
     const passwordLimpia = password.trim();
 
+    // Generamos un correo ficticio basado en el nombre para Firebase Auth
+    const emailFicticio = `${nombreLimpio.toLowerCase().replace(/\s+/g, '')}@invecem.com`;
+
     if (!nombreLimpio || !passwordLimpia || !rol) {
       return alert("⚠️ Por favor llene todos los campos");
     }
 
+    if (passwordLimpia.length < 6) {
+      return alert("⚠️ La contraseña debe tener al menos 6 caracteres por seguridad de Firebase.");
+    }
+
     try {
-      await addDoc(collection(db, "usuarios"), {
+      // PASO A: Crear el usuario en la pestaña de "Authentication"
+      const userCredential = await createUserWithEmailAndPassword(auth, emailFicticio, passwordLimpia);
+      const userAuth = userCredential.user;
+
+      // PASO B: Guardar los datos en Firestore usando el UID generado
+      // Esto vincula legalmente la cuenta con sus datos de perfil/rol
+      await setDoc(doc(db, "usuarios", userAuth.uid), {
+        uid: userAuth.uid,
         usuario: nombreLimpio,
-        password: passwordLimpia, 
+        email: emailFicticio,
+        password: passwordLimpia, // Guardamos referencia (opcional por ser local)
         rol: rol,
         estado: estado,
         fechaCreacion: new Date().toISOString()
       });
 
       setNombre(""); setPassword(""); setRol("");
-      alert("✅ Usuario registrado exitosamente.");
+      alert(`✅ Usuario registrado exitosamente.\nID de Acceso: ${emailFicticio}`);
     } catch (error) {
-      console.error("Error al guardar:", error);
-      alert("❌ Error de conexión.");
+      console.error("Error completo:", error);
+      if (error.code === 'auth/email-already-in-use') {
+        alert("❌ Este nombre de usuario ya existe en el sistema de autenticación.");
+      } else {
+        alert("❌ Error al registrar: " + error.message);
+      }
     }
   };
 
@@ -81,7 +98,7 @@ export default function GestionUsuarios() {
   };
 
   const eliminarUsuario = async (id, nombreUser) => {
-    if (confirm(`¿Eliminar a ${nombreUser}?`)) {
+    if (confirm(`¿Eliminar a ${nombreUser}? Ten en cuenta que esto solo borra sus datos de la tabla, no su acceso de autenticación.`)) {
       try {
         await deleteDoc(doc(db, "usuarios", id));
       } catch (error) {
@@ -97,7 +114,7 @@ export default function GestionUsuarios() {
           <Image src="/img/logo.jpg" alt="Logo" width={50} height={50} className="avatar" />
           <div>
             <h1>INVECEM</h1>
-            <p>Panel de Administración de Usuarios</p>
+            <p>Panel de Administración de Usuarios (Seguridad Híbrida)</p>
           </div>
         </div>
         <button className="btn-volver" onClick={() => router.push("/administrador")}>
@@ -107,17 +124,17 @@ export default function GestionUsuarios() {
 
       <main className="main-content">
         <div className="card shadow">
-          <h2 className="card-title">Registro de Personal</h2>
+          <h2 className="card-title">Registro de Personal Autorizado</h2>
           <form onSubmit={handleSubmit} className="form-grid">
             <input 
               type="text" 
-              placeholder="Nombre de usuario" 
+              placeholder="Nombre de usuario (ej. juan_perez)" 
               value={nombre} 
               onChange={(e) => setNombre(e.target.value)} 
             />
             <input 
               type="password" 
-              placeholder="Contraseña" 
+              placeholder="Contraseña (mín. 6 caracteres)" 
               value={password} 
               onChange={(e) => setPassword(e.target.value)} 
             />
@@ -132,18 +149,18 @@ export default function GestionUsuarios() {
               <option value="Activo">Estatus: Activo</option>
               <option value="Inactivo">Estatus: Inactivo</option>
             </select>
-            <button type="submit" className="btn-submit">Registrar Usuario</button>
+            <button type="submit" className="btn-submit">Registrar y Dar Acceso</button>
           </form>
         </div>
 
         <div className="card shadow mt-30">
-          <h2 className="card-title">Usuarios en Base de Datos ({usuarios.length})</h2>
+          <h2 className="card-title">Usuarios con Acceso al Sistema ({usuarios.length})</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="user-table">
               <thead>
                 <tr>
                   <th>Usuario</th>
-                  <th>Contraseña</th>
+                  <th>ID de Login</th>
                   <th>Rol</th>
                   <th>Estado</th>
                   <th>Acciones</th>
@@ -154,7 +171,7 @@ export default function GestionUsuarios() {
                   usuarios.map((user) => (
                     <tr key={user.id}>
                       <td><strong>{user.usuario || "Sin nombre"}</strong></td>
-                      <td style={{fontFamily: 'monospace'}}>{user.password || "****"}</td>
+                      <td style={{fontFamily: 'monospace', fontSize: '0.85em'}}>{user.email || "N/A"}</td>
                       <td>{user.rol || "Sin rol"}</td>
                       <td>
                         <span className={`badge ${user.estado === "Activo" ? "active" : "inactive"}`}>
@@ -163,7 +180,7 @@ export default function GestionUsuarios() {
                       </td>
                       <td className="actions-cell">
                         <button onClick={() => toggleEstado(user.id, user.estado)} className="btn-action">
-                          🔄 Cambiar Estatus
+                          🔄 Estatus
                         </button>
                         <button onClick={() => eliminarUsuario(user.id, user.usuario)} className="btn-delete">
                           🗑️ Borrar
@@ -174,7 +191,7 @@ export default function GestionUsuarios() {
                 ) : (
                   <tr>
                     <td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>
-                      No se encontraron registros en la colección 'usuarios'.
+                      No hay usuarios registrados con seguridad vinculada.
                     </td>
                   </tr>
                 )}
@@ -183,7 +200,7 @@ export default function GestionUsuarios() {
           </div>
         </div>
       </main>
-
+  
       <style jsx>{`
         .container-usuarios { min-height: 100vh; background: #f1f5f9; padding-bottom: 50px; }
         .header-top { background: white; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 4px solid #e30613; }

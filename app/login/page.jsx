@@ -25,51 +25,49 @@ export default function Login() {
     }
   }, []);
 
-  const manejarLogin = async (e) => {
+ const manejarLogin = async (e) => {
     e.preventDefault();
     setError(""); 
 
     try {
-      const usuariosRef = collection(db, "usuarios");
-      const q = query(usuariosRef, where("usuario", "==", usuario.trim()));
-      const querySnapshot = await getDocs(q);
+      // 1. Convertimos el nombre de usuario al formato que configuramos (@invecem.com)
+      const nombreLimpio = usuario.trim().toLowerCase().replace(/\s+/g, '');
+      const correoParaAuth = usuario.includes("@") ? usuario : `${nombreLimpio}@invecem.com`;
 
-      if (!querySnapshot.empty) {
-        const userData = querySnapshot.docs[0].data();
+      // 2. PRIMERO: Autenticamos con Firebase Auth (Esto nos da permiso para leer la DB)
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, correoParaAuth, clave.trim());
+      } catch (authError) {
+        console.log("Fallo Auth:", authError.message);
+        setError("Usuario o contraseña incorrectos");
+        return;
+      }
+
+      const user = userCredential.user;
+
+      // 3. SEGUNDO: Ahora que ya estamos autenticados, las reglas nos dejan leer Firestore
+      const docRef = doc(db, "usuarios", user.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
         
-        if (userData.password === clave.trim()) {
-          if (userData.estado === "Inactivo") {
-            setError("🚫 Usuario desactivado.");
-            return;
-          }
-          iniciarSesionExitosa(userData.rol, userData.usuario);
+        // Verificamos si el usuario está activo
+        if (userData.estado === "Inactivo") {
+          setError("🚫 Usuario desactivado por administración.");
           return;
         }
+
+        // 4. Todo bien, iniciamos sesión exitosa
+        iniciarSesionExitosa(userData.rol, userData.usuario);
+      } else {
+        // Si el usuario existe en Auth pero no en la tabla "usuarios"
+        setError("⚠️ Error de perfil: El usuario no tiene datos asignados.");
       }
-
-      try {
-        const correoParaAuth = usuario.includes("@") ? usuario : `${usuario.trim()}@gmail.com`;
-        const userCredential = await signInWithEmailAndPassword(auth, correoParaAuth, clave);
-        const user = userCredential.user;
-
-        const docRef = doc(db, "usuarios", user.uid);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          iniciarSesionExitosa(data.rol, usuario);
-        } else {
-          setError("Usuario autenticado pero sin rol asignado.");
-        }
-        return;
-      } catch (authError) {
-        console.log("Fallo en el segundo intento (Auth):", authError.message);
-      }
-
-      setError("Usuario o contraseña incorrectos");
 
     } catch (error) {
-      console.error(error);
+      console.error("Error general:", error);
       setError("Error al conectar con el sistema");
     }
   };

@@ -102,161 +102,69 @@ export default function Inspector() {
       </main>
 
       <style jsx>{`
-  .admin-layout {
-    display: flex;
-    min-height: 100vh;
-    background: url("/img/ins.jpg") no-repeat center center fixed;
-    background-size: cover;
-    font-family: 'Segoe UI', sans-serif;
-  }
+        .admin-layout { 
+          display: flex; 
+          min-height: 100vh; 
+          background: url("/img/ins.jpg") no-repeat center center fixed; 
+          background-size: cover; 
+          font-family: 'Segoe UI', sans-serif; 
+        }
 
-  /* SIDEBAR: Ajustado para eliminar el efecto árbol */
-  .sidebar {
-    width: 260px;
-    background: #1a1a1a;
-    color: white;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
+        /* Agregamos padding-top para bajar el contenido del menú */
+        .sidebar { 
+          width: 260px; 
+          background: #1a1a1a; 
+          color: white; 
+          display: flex; 
+          flex-direction: column; 
+          transition: 0.3s; 
+          flex-shrink: 0;
+          padding-top: 20px; 
+        }
 
-  .sidebar-header {
-    text-align: center;
-    padding: 30px 0;
-    border-bottom: 1px solid #333;
-  }
+        .sidebar-header { text-align: center; padding: 30px 0; border-bottom: 1px solid #333; }
+        .title { color: #e30613; margin: 0; font-size: 1.8rem; }
+        .nav-menu { list-style: none; padding: 20px 0; flex-grow: 1; }
+        .nav-item { margin: 5px 15px; padding: 12px 15px; border-radius: 10px; cursor: pointer; color: #aaa; transition: 0.3s; }
+        .nav-item:hover { background: #e30613; color: white; }
+        .active { background: #e30613; color: white; font-weight: bold; }
+        .logout { padding: 20px; }
+        .btn-logout { border: 1px solid #e30613; color: #e30613; background: transparent; width: 100%; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-logout:hover { background: #e30613; color: white; }
+        .main-view { flex: 1; padding: 40px; }
+        
+        .welcome-card { 
+          background: white; 
+          padding: 25px; 
+          border-radius: 20px; 
+          box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+          margin-bottom: 30px; 
+          margin-top: 60px; /* Un poco más de margen para bajarlo bien */
+        }
 
-  .title {
-    color: #e30613;
-    margin: 0;
-    font-size: 1.8rem;
-    font-weight: 800;
-  }
+        /* Selector más fuerte para forzar el color rojo en el texto de bienvenida */
+        .welcome-card h2, 
+        .welcome-card .userInfo h2 {
+          color: #e30613 !important;
+          margin-top: 0;
+          margin-bottom: 10px;
+        }
 
-  /* CORRECCIÓN MENÚ: Eliminamos el "árbol" con padding 0 */
-  .nav-menu {
-    list-style: none;
-    padding: 0; /* Esto quita el escalonado */
-    margin: 20px 0 0 0;
-    flex-grow: 1;
-  }
-
-  .nav-item {
-    margin: 0; /* Quitamos el margen lateral para que ocupe todo el ancho */
-    padding: 15px 25px; /* Más espacio interno para que se vea profesional */
-    border-radius: 0; /* Rectos para que encajen en el sidebar */
-    cursor: pointer;
-    color: #aaa;
-    transition: 0.3s;
-    font-weight: 600;
-    border-left: 4px solid transparent;
-  }
-
-  .nav-item:hover {
-    background: #252525;
-    color: #e30613;
-    border-left: 4px solid #e30613;
-  }
-
-  .active {
-    background: #e30613;
-    color: white;
-    font-weight: bold;
-    border-left: 4px solid white;
-  }
-
-  /* BOTÓN CERRAR SESIÓN */
-  .logout { padding: 20px; }
-  .btn-logout {
-    border: none;
-    color: white;
-    background: #e30613;
-    width: 100%;
-    padding: 12px;
-    border-radius: 10px;
-    cursor: pointer;
-    font-weight: 800;
-    transition: 0.2s;
-    box-shadow: 0 4px 0px #b0050f;
-  }
-
-  .btn-logout:hover {
-    background: #ff0000;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 0px #b0050f;
-  }
-
-  .main-view { 
-    flex: 1; 
-    padding: 0; /* Quitamos el padding aquí para que el banner toque los bordes */
-    background: rgba(0, 0, 0, 0.05); 
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* CORRECCIÓN BANNER: Bienvenido Inspector (Rojo, letras blancas, delgado) */
-  .welcome-card {
-    background: #ff0000;
-    padding: 12px 40px; /* Delgado */
-    margin: 0; /* Sin margen para que sea total */
-    border-radius: 0; /* Totalmente recto para los bordes */
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border: none;
-    width: 100%;
-  }
-
-  .welcome-card h1 { 
-    margin: 0; 
-    color: white; /* Letras blancas */
-    font-size: 1.1rem; 
-    font-weight: 800; 
-    text-transform: uppercase;
-  }
-
-  .welcome-card p { 
-    margin: 0; 
-    color: rgba(255, 255, 255, 0.8); 
-    font-weight: 700;
-    font-size: 0.9rem;
-  }
-
-  /* ÁREA DE CONTENIDO DEBAJO DEL BANNER */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    padding: 30px; /* El padding que quitamos arriba lo ponemos aquí */
-  }
-
-  .stat-card {
-    background: white;
-    padding: 30px;
-    border-radius: 20px;
-    text-align: center;
-    font-weight: 800;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: none;
-    color: #1a1a1a;
-    box-shadow: 0 6px 0px #ddd, 0 10px 20px rgba(0,0,0,0.1);
-  }
-
-  .stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 0px #ccc;
-  }
-
-  @media (max-width: 768px) {
-    .sidebar { position: fixed; left: -100%; height: 100%; z-index: 999; }
-    .sidebar.open { left: 0; }
-  }
-`}</style>
+        .userInfo { display: flex; align-items: center; gap: 15px; }
+        .avatar { border-radius: 50%; border: 2px solid #e30613; padding: 2px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .stat-card { background: white; padding: 30px; border-radius: 20px; text-align: center; cursor: pointer; transition: 0.3s; border: 1px solid #eee; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+        .stat-card h3 { margin: 15px 0 5px; color: #1a1a1a; font-size: 1.1rem; }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); border-color: #e30613; }
+        .menu-btn { display: none; position: fixed; top: 15px; left: 15px; z-index: 1000; background: #1a1a1a; color: white; border: none; padding: 10px; border-radius: 8px; }
+        
+        @media (max-width: 768px) {
+          .menu-btn { display: block; }
+          .sidebar { position: fixed; left: -100%; height: 100%; z-index: 999; padding-top: 0; }
+          .sidebar.open { left: 0; }
+          .main-view { padding: 20px; margin-top: 50px; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -175,41 +175,126 @@ export default function PerfilUsuario() {
       </div>
 
       <style jsx>{`
-        .perfil-wrapper { background: #f1f5f9; min-height: 100vh; display: flex; justify-content: center; padding: 40px 20px; }
-        .perfil-card { background: white; padding: 40px; border-radius: 15px; width: 100%; max-width: 550px; border-top: 5px solid #1e3a8a; }
-        .perfil-header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
-        .btn-atras { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 15px; border-radius: 8px; cursor: pointer; color: #64748b; font-weight: 600; }
-        h2 { color: #1e3a8a; font-size: 1.4rem; margin: 0; }
-        
-        .user-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        .info-item label { display: block; font-size: 0.7rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px; }
-        .info-item p { margin: 0; color: #1e293b; font-weight: 600; font-size: 1rem; }
-        .ficha-tag { color: #e30613; }
-        .role-text { color: #1e3a8a; }
+  /* --- WRAPPER CON PATRÓN DE FONDO --- */
+  .perfil-wrapper { 
+    background-color: #f0f4f8; 
+    background-image: radial-gradient(#d1d5db 0.8px, transparent 0.8px);
+    background-size: 24px 24px;
+    min-height: 100vh; 
+    display: flex; 
+    justify-content: center; 
+    padding: 40px 20px; 
+    font-family: 'Inter', sans-serif;
+  }
 
-        .divider { border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0; }
+  /* --- TARJETA DE PERFIL --- */
+  .perfil-card { 
+    background: white; 
+    padding: 30px; /* Reducido de 40px */
+    border-radius: 20px; 
+    width: 100%; 
+    max-width: 500px; 
+    border: 1px solid #e2e8f0;
+    border-top: 6px solid #e30613; 
+    box-shadow: 8px 8px 0px #0f172a; 
+  }
 
-        .clave-form h3 { margin: 0; color: #1e3a8a; font-size: 1.1rem; }
-        .subtitle { font-size: 0.8rem; color: #64748b; margin-bottom: 20px; }
-        .input-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px; }
-        .input-group label { font-size: 0.75rem; font-weight: 700; color: #475569; }
-        input { padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; }
+  .perfil-header { 
+    display: flex; 
+    align-items: center; 
+    gap: 15px; 
+    margin-bottom: 25px; 
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 15px;
+  }
 
-        /* 🔥 SOLO AGREGADO */
-        .validaciones p { font-size: 0.8rem; color: #64748b; margin: 3px 0; }
-        .ok { color: green; font-weight: bold; }
+  .btn-atras { 
+    background: white; 
+    border: 1px solid #e2e8f0; 
+    padding: 6px 12px; 
+    border-radius: 8px; 
+    cursor: pointer; 
+    color: #64748b; 
+    font-weight: 800; 
+    font-size: 11px; /* Letra más pequeña */
+    transition: 0.3s;
+  }
 
-        .btn-update { 
-          width: 100%; background: #1e3a8a; color: white; padding: 14px; 
-          border: none; border-radius: 10px; font-weight: bold; cursor: pointer; 
-          margin-top: 20px; transition: 0.3s;
-        }
-        .btn-update:hover { background: #172554; }
-        .btn-update:disabled { background: #94a3b8; cursor: not-allowed; }
+  h2 { color: #0f172a; font-size: 1.3rem; font-weight: 900; margin: 0; letter-spacing: -0.5px; }
+  
+  /* --- INFORMACIÓN DEL USUARIO --- */
+  .user-info { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+  
+  .info-item label { 
+    display: block; 
+    font-size: 9px; /* Más pequeño */
+    font-weight: 900; 
+    color: #94a3b8; 
+    text-transform: uppercase; 
+    margin-bottom: 3px; 
+  }
+  
+  .info-item p { 
+    margin: 0; 
+    color: #0f172a; 
+    font-weight: 800; 
+    font-size: 0.95rem; /* Reducido de 1.1rem */
+    text-transform: uppercase;
+  }
 
-        .shadow { box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        .loading { padding: 50px; text-align: center; font-weight: bold; color: #1e3a8a; }
-      `}</style>
+  .ficha-tag { color: #e30613; } 
+  .role-text { 
+    background: #f1f5f9; 
+    padding: 3px 8px; 
+    border-radius: 6px; 
+    font-size: 0.8rem; /* Más pequeño */
+    color: #0f172a;
+  }
+
+  .divider { border: 0; border-top: 2px solid #f1f5f9; margin: 25px 0; }
+
+  /* --- FORMULARIO DE CLAVE --- */
+  .clave-form h3 { margin: 0; color: #0f172a; font-size: 1rem; font-weight: 900; }
+  .subtitle { font-size: 0.75rem; color: #64748b; margin-bottom: 20px; font-weight: 500; }
+  
+  .input-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 6px; }
+  .input-group label { font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase; }
+  
+  input { 
+    padding: 12px; 
+    border: 2px solid #f1f5f9; 
+    border-radius: 10px; 
+    font-size: 0.85rem; /* Más pequeño */
+    font-weight: 600;
+    outline: none;
+  }
+  input:focus { border-color: #e30613; }
+
+  /* --- VALIDACIONES --- */
+  .validaciones { background: #f8fafc; padding: 12px; border-radius: 10px; margin-top: 8px; }
+  .validaciones p { font-size: 0.75rem; color: #94a3b8; margin: 3px 0; font-weight: 600; }
+  .ok { color: #10b981 !important; }
+
+  /* --- BOTÓN ACTUALIZAR --- */
+  .btn-update { 
+    width: 100%; 
+    background: #e30613; 
+    color: white; 
+    padding: 14px; 
+    border: none; 
+    border-radius: 10px; 
+    font-weight: 900; 
+    font-size: 12px; /* Reducido de 14px */
+    text-transform: uppercase;
+    cursor: pointer; 
+    margin-top: 20px; 
+    box-shadow: 0 4px 0px #b8050f;
+  }
+  
+  .btn-update:hover { transform: translateY(2px); box-shadow: 0 2px 0px #8a040b; }
+  
+  .loading { padding: 40px; text-align: center; font-weight: 900; color: #e30613; font-size: 1rem; }
+`}</style>
     </div>
   );
 }

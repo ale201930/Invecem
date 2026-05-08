@@ -68,10 +68,10 @@ export default function GestionUsuarios() {
       {/* HEADER SUPERIOR */}
       <header className="header-top shadow">
         <div className="header-info">
-          <Image src="/img/logo.jpg" alt="Logo" width={50} height={50} className="avatar" />
+          
           <div>
-            <h1>INVECEM</h1>
-            <p>Gestión de Personal y Control de Asistencia</p>
+            
+            <p>Gestión de Usuarios </p>
           </div>
         </div>
         <button className="btn-volver" onClick={() => router.push("/administrador")}>
@@ -166,47 +166,196 @@ export default function GestionUsuarios() {
       </main>
 
       <style jsx>{`
-        .container-usuarios { min-height: 100vh; background: #f8fafc; }
-        .header-top { background: #fff; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #e30613; }
-        .header-info h1 { margin: 0; color: #1e3a8a; font-size: 1.3rem; font-weight: 800; }
-        
-        .action-bar { display: flex; justify-content: space-between; gap: 20px; margin-top: 30px; max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 20px; }
-        .search-container { position: relative; flex: 1; }
-        .search-icon { position: absolute; left: 15px; top: 12px; color: #94a3b8; }
-        .search-container input { width: 100%; padding: 12px 12px 12px 45px; border: 1px solid #e2e8f0; border-radius: 10px; background: white; }
-        
-        .btn-registrar { background: #1e3a8a; color: white; border: none; padding: 0 25px; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-registrar:hover { background: #172554; }
+  /* --- WRAPPER Y FONDO (SIN CAMBIOS) --- */
+  .container-usuarios { 
+    min-height: 100vh; 
+    background-color: #f0f4f8; 
+    background-image: radial-gradient(#d1d5db 0.8px, transparent 0.8px);
+    background-size: 24px 24px;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center; 
+  }
 
-        .main-content { max-width: 1240px; margin: 0 auto; padding: 20px; }
-        .card { background: white; border-radius: 15px; overflow: hidden; }
-        
-        .user-table { width: 100%; border-collapse: collapse; text-align: left; }
-        .user-table th { background: #f8fafc; padding: 15px; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #edf2f7; }
-        .user-table td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; vertical-align: middle; }
+  
+  /* 1. El contenedor padre debe ser relativo para anclar el botón */
+  .header-top { 
+    width: 100%;
+    background: #fff; 
+    padding: 20px 0; 
+    display: flex; 
+    justify-content: center; /* Esto mantiene el título centrado */
+    align-items: center;
+    border-bottom: 4px solid #e30613; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    position: relative; 
+  }
 
-        .status-pill { padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
-        .active { background: #dcfce7; color: #166534; }
-        .inactive { background: #fee2e2; color: #991b1b; }
+  .header-inner {
+    width: 100%;
+    max-width: 1400px;
+    display: flex;
+    justify-content: center; /* Centrado absoluto del título */
+    align-items: center;
+    padding: 0 40px;
+    position: relative;
+  }
 
-        .bold-blue { color: #1e3a8a; font-weight: 800; font-family: 'monospace'; font-size: 1rem; }
-        .cargo-main { font-weight: bold; color: #1e293b; }
-        .unidad-sub { font-size: 0.75rem; color: #94a3b8; }
-        
-        .role-tag { background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; }
+  /* 2. El botón ahora se posiciona de forma independiente */
+  .btn-volver {
+    position: absolute; /* Lo saca del flujo para que no empuje al título */
+    left: 40px;        /* Lo pega a la izquierda */
+    background: #f8fafc;
+    color: #64748b;
+    border: 2px solid #e2e8f0;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: 0.3s;
+    z-index: 10;
+  }
 
-        .actions-cell { display: flex; gap: 8px; }
-        .btn-icon { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; min-width: 35px; }
-        .btn-icon:hover { transform: scale(1.1); background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        
-        .view { color: #64748b; }
-        .edit { color: #f59e0b; }
-        .block { color: #ef4444; }
-        .delete { color: #94a3b8; }
-        
-        .shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-        .mt-20 { margin-top: 20px; }
-      `}</style>
+  .btn-volver:hover {
+    background: #0f172a;
+    color: white;
+    border-color: #0f172a;
+  }
+
+  /* 3. Título centrado y más imponente */
+  .header-info h1 { 
+    margin: 0; 
+    color: #000000; 
+    font-size: 1.8rem; 
+    font-weight: 900; 
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+
+
+  /* --- TÍTULO GRANDE Y CENTRADO --- */
+  .header-center { 
+    text-align: center; 
+  }
+
+  .header-info h1 { 
+    margin: 0; 
+    color: #0f172a; 
+    font-size: 1.8rem; /* Más grande y llamativo */
+    font-weight: 900; 
+    text-transform: uppercase;
+    letter-spacing: 2px; /* Letras más separadas y estéticas */
+    line-height: 1.2;
+    background: linear-gradient(to bottom, #0f172a, #334155);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* --- ESPACIO DERECHO (VACÍO PARA EL LOGO SI LO USAS LUEGO) --- */
+  .header-right { 
+    position: absolute;
+    right: 40px;
+  }
+
+  /* --- EL RESTO DE TU CÓDIGO PERMANECE IGUAL (SIN MOVIMIENTOS) --- */
+  .action-bar { 
+    display: flex; 
+    justify-content: space-between; 
+    gap: 15px; 
+    margin: 40px 0 25px 0; 
+    width: 100%;
+    max-width: 1100px; 
+    padding: 20px; 
+    background: white;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .search-container { position: relative; flex: 1; }
+  .search-container input { 
+    width: 100%; 
+    padding: 12px 12px 12px 45px; 
+    border: 2px solid #f1f5f9; 
+    border-radius: 12px; 
+    font-weight: 600;
+    outline: none;
+    transition: 0.3s;
+  }
+
+  .btn-registrar { 
+    background: #e30613; 
+    color: white; 
+    border: none; 
+    padding: 12px 25px; 
+    border-radius: 10px; 
+    font-weight: 900; 
+    font-size: 12px;
+    text-transform: uppercase;
+    cursor: pointer; 
+    box-shadow: 0 4px 0px #b8050f;
+  }
+
+  .main-content { 
+    width: 100%;
+    max-width: 1100px; 
+    padding: 0 20px 40px 20px; 
+  }
+
+  .card { 
+    background: white; 
+    border-radius: 24px; 
+    border: 1px solid #e2e8f0;
+    box-shadow: 10px 10px 0px #0f172a; 
+    overflow: hidden;
+  }
+  
+  .user-table { width: 100%; border-collapse: collapse; }
+  .user-table th { 
+    background: #f8fafc; 
+    padding: 18px; 
+    font-size: 10px; 
+    color: #94a3b8; 
+    text-transform: uppercase; 
+    font-weight: 900;
+    border-bottom: 3px solid #e30613; 
+    text-align: center;
+  }
+
+  .user-table td { 
+    padding: 15px; 
+    border-bottom: 1px solid #f1f5f9; 
+    font-size: 0.85rem; 
+    color: #1e293b;
+    text-align: center;
+  }
+
+  .status-pill { 
+    padding: 4px 10px; 
+    border-radius: 8px; 
+    font-size: 9px; 
+    font-weight: 900; 
+    text-transform: uppercase;
+    display: inline-block;
+  }
+  .active { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+  .inactive { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+  .actions-cell { display: flex; gap: 8px; justify-content: center; }
+  .btn-icon { 
+    background: white; 
+    border: 1px solid #e2e8f0; 
+    padding: 7px; 
+    border-radius: 8px; 
+    cursor: pointer; 
+  }
+`}</style>
     </div>
   );
 }

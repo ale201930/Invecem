@@ -61,18 +61,122 @@ export default function VerUsuario() {
       </div>
 
       <style jsx>{`
-        .form-container { background: #f1f5f9; min-height: 100vh; padding: 40px; display: flex; justify-content: center; }
-        .sislexi-card { background: white; padding: 40px; border-radius: 15px; width: 100%; max-width: 800px; border-top: 5px solid #1e3a8a; }
-        .form-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
-        h2 { color: #1e3a8a; font-size: 1.2rem; }
-        .grid-details { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-        .detail-section h3 { font-size: 0.8rem; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px; }
-        p { margin-bottom: 10px; color: #334155; }
-        .status-badge { padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 0.8rem; }
-        .active { background: #dcfce7; color: #166534; }
-        .inactive { background: #fee2e2; color: #991b1b; }
-        .btn-volver { background: none; border: none; color: #1e3a8a; cursor: pointer; font-weight: bold; }
-      `}</style>
+  /* --- WRAPPER CON PATRÓN DE FONDO --- */
+  .form-container { 
+    background-color: #f0f4f8; 
+    background-image: radial-gradient(#d1d5db 0.8px, transparent 0.8px);
+    background-size: 24px 24px;
+    min-height: 100vh; 
+    padding: 40px 20px; 
+    display: flex; 
+    justify-content: center; 
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* --- TARJETA DE DETALLES (ESTILO TABLA CARD) --- */
+  .sislexi-card { 
+    background: white; 
+    padding: 35px; 
+    border-radius: 24px; 
+    width: 100%; 
+    max-width: 800px; 
+    border: 1px solid #e2e8f0;
+    border-top: 8px solid #e30613; /* Rojo Institucional */
+    box-shadow: 12px 12px 0px #0f172a; /* Sombra sólida azul oscuro */
+  }
+
+  .form-header { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    margin-bottom: 30px; 
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 20px;
+  }
+
+  h2 { 
+    color: #0f172a; 
+    font-size: 1.3rem; 
+    font-weight: 900; 
+    margin: 0; 
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+  }
+
+  .btn-volver { 
+    background: #f1f5f9; 
+    border: 1px solid #e2e8f0; 
+    padding: 8px 16px; 
+    border-radius: 10px; 
+    cursor: pointer; 
+    color: #64748b; 
+    font-weight: 800; 
+    font-size: 11px;
+    text-transform: uppercase;
+    transition: 0.3s; 
+  }
+  .btn-volver:hover { 
+    background: #e30613; 
+    color: white; 
+    border-color: #e30613; 
+  }
+
+  /* --- CUADRÍCULA DE INFORMACIÓN --- */
+  .grid-details { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 30px; 
+  }
+
+  .detail-section h3 { 
+    font-size: 0.75rem; 
+    color: #e30613; 
+    text-transform: uppercase; 
+    font-weight: 900;
+    border-bottom: 2px solid #f8fafc; 
+    padding-bottom: 8px; 
+    margin-bottom: 15px; 
+    letter-spacing: 1px;
+  }
+
+  /* --- ETIQUETAS Y VALORES --- */
+  .info-group { margin-bottom: 12px; }
+  
+  .label-text { 
+    display: block;
+    font-size: 10px; 
+    font-weight: 800; 
+    color: #94a3b8; 
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .value-text { 
+    margin: 0; 
+    color: #0f172a; 
+    font-weight: 700; 
+    font-size: 0.95rem; 
+  }
+
+  /* --- BADGES DE ESTADO --- */
+  .status-badge { 
+    padding: 4px 12px; 
+    border-radius: 8px; 
+    font-weight: 900; 
+    font-size: 10px; 
+    text-transform: uppercase;
+    display: inline-block;
+    margin-top: 5px;
+  }
+  .active { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+  .inactive { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+  /* --- RESPONSIVO --- */
+  @media (max-width: 650px) {
+    .grid-details { grid-template-columns: 1fr; gap: 20px; }
+    .sislexi-card { padding: 25px; }
+  }
+`}</style>
     </div>
   );
 }

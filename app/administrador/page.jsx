@@ -100,13 +100,8 @@ export default function Dashboard() {
         {/* TARJETA BLANCA (SE MANTIENE) */}
         <div className="welcome-card">
           <div className="userInfo">
-            <Image 
-              src="/img/logo.jpg" 
-              alt="Logo"
-              width={45}
-              height={45}
-              className="avatar"
-            />
+            
+            
             <div>
               <h1>Bienvenido, {nombreUsuario} 👋</h1>
               <p>Has ingresado al Panel del sistema INVECEM como <strong>Administrador</strong></p>

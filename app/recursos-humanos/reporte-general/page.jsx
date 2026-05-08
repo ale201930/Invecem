@@ -48,13 +48,16 @@ export default function ReportesGenerales() {
   const ejecutarBusqueda = async () => {
     setLoading(true);
     try {
+      // CORRECCIÓN NOCTURNA: Buscamos desde las 00:00 de hoy hasta las 07:00 del día siguiente
+      // Esto captura a los que entran tarde y salen en la madrugada del día siguiente.
       const inicio = new Date(fechaBusqueda + "T00:00:00");
       const fin = new Date(fechaBusqueda + "T23:59:59");
+      const finExtendido = new Date(fin.getTime() + (7 * 60 * 60 * 1000)); 
 
       const q = query(
         collection(db, "asistencias"),
         where("fechaHora", ">=", Timestamp.fromDate(inicio)),
-        where("fechaHora", "<=", Timestamp.fromDate(fin)),
+        where("fechaHora", "<=", Timestamp.fromDate(finExtendido)),
         orderBy("fechaHora", "asc")
       );
 
@@ -72,7 +75,8 @@ export default function ReportesGenerales() {
         data = data.filter(item => {
           if (!item.entrada) return false;
           const [h] = item.entrada.split(":").map(Number);
-          const esNocturno = h >= 18 || h < 5; 
+          // Se define nocturno si entra después de las 6 PM (18h) o antes de las 7 AM
+          const esNocturno = h >= 18 || h < 7; 
           return filtroTurno === "DIURNO" ? !esNocturno : esNocturno;
         });
       }
@@ -117,7 +121,6 @@ export default function ReportesGenerales() {
     doc.setFontSize(10);
     doc.text(`REGISTROS DEL DÍA: ${fechaLinda} | TURNO: ${filtroTurno}`, 15, 30);
 
-    // AQUÍ ESTÁ LA CORRECCIÓN: Se mapea Área + Cargo para el PDF
     const filas = resultados.map(r => [
       r.ficha, 
       r.nombreCompleto?.toUpperCase(), 
@@ -257,44 +260,167 @@ export default function ReportesGenerales() {
       )}
 
       <style jsx>{`
-        .container { padding: 40px; max-width: 1400px; margin: 0 auto; background: #f1f5f9; min-height: 100vh; font-family: sans-serif; }
-        .print-only { display: none; }
-        .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
-        .btn-back { background: #1e293b; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 800; cursor: pointer; }
-        .title { font-size: 28px; font-weight: 900; color: #1e293b; text-transform: uppercase; }
-        .text-red { color: #e30613; }
-        .text-turquesa { color: #008b8b; }
-        
-        .search-box { background: #1e293b; padding: 30px; border-radius: 20px; margin-bottom: 30px; color: white; }
-        .grid-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
-        .input-group label { display: block; font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; }
-        .input-group input, .input-group select { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: 700; color: #1e293b; background: white; }
-        
-        .extra-filters { display: flex; gap: 15px; border-top: 1px solid #334155; padding-top: 20px; }
-        .search-input { flex: 1; padding: 15px; border-radius: 10px; border: 2px solid #008b8b; font-weight: 700; color: #1e293b !important; background: white !important; outline: none; }
-        
-        .btn-search { background: #e30613; color: white; border: none; padding: 0 30px; border-radius: 10px; font-weight: 900; cursor: pointer; }
-        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .btn-group { display: flex; gap: 10px; }
-        .btn-pdf { background: #1e293b; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; }
-        .btn-print { background: #008b8b; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; }
+        /* ESTILO INTEGRAL INVECEM - REPORTE GENERAL */
+        .container { 
+          padding: 40px; 
+          max-width: 1400px; 
+          margin: 0 auto; 
+          background-color: #f0f4f8;
+          background-image: radial-gradient(#d1d5db 0.8px, transparent 0.8px);
+          background-size: 24px 24px;
+          min-height: 100vh; 
+          font-family: 'Inter', sans-serif; 
+        }
 
-        .table-wrapper { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .print-only { display: none; }
+
+        .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
+        
+        .btn-back { 
+          background: white; 
+          border: 1px solid #e2e8f0; 
+          padding: 10px 16px; 
+          border-radius: 10px; 
+          font-weight: 800; 
+          color: #64748b; 
+          cursor: pointer; 
+          transition: 0.3s; 
+        }
+        .btn-back:hover { color: #e30613; transform: translateX(-5px); }
+
+        .title { font-size: 28px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: -1px; }
+        .text-red { color: #e30613; }
+
+        /* CAJA DE BÚSQUEDA ESTILO INVECEM */
+        .search-box { 
+          background: #0f172a; 
+          padding: 30px; 
+          border-radius: 24px; 
+          margin-bottom: 40px; 
+          color: white; 
+          position: relative;
+          border: 1px solid #1e293b;
+          box-shadow: 10px 10px 0px #e30613; /* Sombra relieve roja */
+        }
+
+        .grid-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
+        
+        .input-group label { 
+          display: block; 
+          font-size: 10px; 
+          font-weight: 900; 
+          color: #94a3b8; 
+          margin-bottom: 8px; 
+          text-transform: uppercase; 
+          letter-spacing: 1px;
+        }
+
+        .input-group input, .input-group select { 
+          width: 100%; 
+          padding: 12px; 
+          border-radius: 12px; 
+          border: none; 
+          font-weight: 800; 
+          color: #0f172a; 
+          background: white; 
+        }
+
+        .extra-filters { 
+          display: flex; 
+          gap: 15px; 
+          border-top: 1px solid #1e293b; 
+          padding-top: 20px; 
+        }
+
+        .search-input { 
+          flex: 1; 
+          padding: 15px; 
+          border-radius: 12px; 
+          border: 2px solid #e30613; 
+          font-weight: 700; 
+          color: #0f172a !important; 
+          background: white !important; 
+          outline: none; 
+        }
+
+        .btn-search { 
+          background: #e30613; 
+          color: white; 
+          border: none; 
+          padding: 0 35px; 
+          border-radius: 12px; 
+          font-weight: 900; 
+          cursor: pointer; 
+          transition: 0.3s;
+          box-shadow: 0 4px 0px #b8050f;
+        }
+        .btn-search:hover { transform: translateY(2px); box-shadow: 0 2px 0px #8a040b; }
+
+        /* CONTENEDOR DE RESULTADOS */
+        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        
+        .stats { font-weight: 800; color: #64748b; font-size: 14px; }
+        .text-turquesa { color: #e30613; } /* Cambiado a rojo para consistencia */
+
+        .btn-pdf { 
+          background: #0f172a; 
+          color: white; 
+          border: none; 
+          padding: 12px 20px; 
+          border-radius: 10px; 
+          font-weight: 800; 
+          cursor: pointer; 
+          transition: 0.3s;
+        }
+
+        .btn-print { 
+          background: #e30613; 
+          color: white; 
+          border: none; 
+          padding: 12px 20px; 
+          border-radius: 10px; 
+          font-weight: 800; 
+          cursor: pointer; 
+          transition: 0.3s;
+          box-shadow: 0 4px 0px #b8050f;
+        }
+
+        .table-wrapper { 
+          background: white; 
+          border-radius: 24px; 
+          overflow: hidden; 
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+
         .report-table { width: 100%; border-collapse: collapse; }
-        .report-table th { background: #f8fafc; padding: 18px; text-align: left; font-size: 11px; font-weight: 900; color: #64748b; border-bottom: 2px solid #f1f5f9; }
-        .report-table td { padding: 16px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; }
         
-        .area-td { text-transform: uppercase; }
-        .main-area { font-weight: 800; color: #1e293b; font-size: 12px; }
-        .sub-cargo { font-size: 11px; color: #64748b; font-weight: 600; }
+        .report-table th { 
+          background: #f8fafc; 
+          padding: 20px; 
+          text-align: left; 
+          font-size: 11px; 
+          font-weight: 900; 
+          color: #94a3b8; 
+          border-bottom: 3px solid #f1f5f9; 
+          text-transform: uppercase;
+        }
+
+        .report-table td { padding: 18px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; }
         
-        .ficha-num { font-weight: 900; color: #e30613; font-family: monospace; font-size: 16px; }
-        .bold { font-weight: 800; text-transform: uppercase; }
-        .hora { font-weight: 700; color: #0f172a; }
-        .badge { padding: 5px 12px; border-radius: 6px; font-size: 10px; font-weight: 900; color: white; }
-        .bg-red { background: #ef4444; }
-        .bg-turquesa { background: #008b8b; }
-        .shadow-relief { box-shadow: 12px 12px 0px #008b8b; }
+        .main-area { font-weight: 900; color: #0f172a; font-size: 12px; text-transform: uppercase; }
+        .sub-cargo { font-size: 11px; color: #e30613; font-weight: 800; text-transform: uppercase; } /* Cargo en rojo */
+        
+        .ficha-num { font-weight: 900; color: #0f172a; font-family: 'Inter', sans-serif; font-size: 16px; }
+        .bold { font-weight: 800; text-transform: uppercase; color: #1e293b; }
+        .hora { font-family: monospace; font-weight: 900; color: #0f172a; font-size: 15px; }
+
+        /* BADGES SÓLIDOS */
+        .badge { padding: 6px 14px; border-radius: 8px; font-size: 10px; font-weight: 900; color: white; text-transform: uppercase; }
+        .bg-red { background: #e30613; }
+        .bg-turquesa { background: #22c55e; } /* Puntual ahora es verde sólido */
+
+        .tipo-tag { font-weight: 800; color: #64748b; font-size: 11px; }
 
         @media print {
           .no-print { display: none !important; }

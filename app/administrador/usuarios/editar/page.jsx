@@ -157,21 +157,163 @@ export default function EditarUsuario() {
       </form>
 
       <style jsx>{`
-        .form-container { background: #f1f5f9; min-height: 100vh; padding: 40px 20px; display: flex; justify-content: center; }
-        .sislexi-card { background: white; padding: 40px; border-radius: 15px; width: 100%; max-width: 850px; border-top: 5px solid #f59e0b; }
-        .form-header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
-        .btn-volver { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 15px; border-radius: 8px; cursor: pointer; color: #64748b; font-weight: 600; }
-        h2 { color: #1e3a8a; font-size: 1.4rem; margin: 0; }
-        .section-title { color: #1e3a8a; font-size: 0.85rem; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin: 30px 0 20px; }
-        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 15px; }
-        .field { display: flex; flex-direction: column; gap: 6px; }
-        label { font-size: 0.7rem; font-weight: 800; color: #475569; }
-        input, select { padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; }
-        .disabled-input { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
-        .btn-submit { width: 100%; background: #f59e0b; color: white; padding: 16px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 40px; }
-        .shadow { box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        .cargando { display: flex; justify-content: center; align-items: center; height: 100vh; font-weight: bold; color: #1e3a8a; }
-      `}</style>
+  /* --- WRAPPER CON PATRÓN DE FONDO --- */
+  .form-container { 
+    background-color: #f0f4f8; 
+    background-image: radial-gradient(#d1d5db 0.8px, transparent 0.8px);
+    background-size: 24px 24px;
+    min-height: 100vh; 
+    padding: 60px 20px; 
+    display: flex; 
+    justify-content: center; 
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* --- TARJETA PRINCIPAL (ESTILO ROBUSTO) --- */
+  .sislexi-card { 
+    background: white; 
+    padding: 45px; 
+    border-radius: 24px; 
+    width: 100%; 
+    max-width: 850px; 
+    border: 1px solid #e2e8f0;
+    border-top: 8px solid #e30613; /* Rojo INVECEM */
+    box-shadow: 12px 12px 0px #0f172a; /* Sombra sólida */
+  }
+
+  .form-header { 
+    display: flex; 
+    align-items: center; 
+    gap: 20px; 
+    margin-bottom: 35px; 
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 25px;
+  }
+
+  h2 { 
+    color: #0f172a; 
+    font-size: 1.4rem; 
+    font-weight: 900; 
+    margin: 0; 
+    text-transform: uppercase;
+    letter-spacing: 1.5px; /* Título más separado */
+  }
+
+  .btn-volver { 
+    background: #f1f5f9; 
+    border: 1px solid #e2e8f0; 
+    padding: 10px 18px; 
+    border-radius: 10px; 
+    cursor: pointer; 
+    color: #64748b; 
+    font-weight: 800; 
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    transition: 0.3s;
+  }
+  .btn-volver:hover { 
+    background: #e30613; 
+    color: white; 
+    border-color: #e30613; 
+  }
+
+  /* --- TÍTULOS DE SECCIÓN --- */
+  .section-title { 
+    color: #e30613; 
+    font-size: 0.8rem; 
+    font-weight: 900;
+    text-transform: uppercase; 
+    border-bottom: 2px solid #f1f5f9; 
+    padding-bottom: 8px; 
+    margin: 35px 0 25px; 
+    letter-spacing: 2px; /* Espaciado premium */
+  }
+
+  /* --- GRID DE FORMULARIO --- */
+  .row { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 30px; 
+    margin-bottom: 20px; 
+  }
+  
+  .field { display: flex; flex-direction: column; gap: 8px; }
+  
+  label { 
+    font-size: 10px; 
+    font-weight: 800; 
+    color: #0f172a; 
+    text-transform: uppercase; 
+    letter-spacing: 1.2px; /* Etiquetas más separadas */
+  }
+
+  input, select { 
+    padding: 14px; 
+    border: 2px solid #f1f5f9; 
+    border-radius: 12px; 
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    outline: none;
+    transition: 0.3s;
+    letter-spacing: 0.5px;
+  }
+  
+  input:focus, select:focus { 
+    border-color: #e30613; 
+    background: #fffcfc;
+  }
+
+  /* ESTADO DESHABILITADO */
+  .disabled-input { 
+    background: #f8fafc; 
+    color: #94a3b8; 
+    cursor: not-allowed; 
+    border-style: dashed;
+  }
+
+  /* --- BOTÓN SUBMIT (3D ROJO) --- */
+  .btn-submit { 
+    width: 100%; 
+    background: #e30613; 
+    color: white; 
+    padding: 18px; 
+    border: none; 
+    border-radius: 14px; 
+    font-weight: 900; 
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    cursor: pointer; 
+    margin-top: 40px; 
+    transition: 0.2s;
+    box-shadow: 0 4px 0px #b8050f;
+  }
+  
+  .btn-submit:hover { 
+    transform: translateY(2px); 
+    box-shadow: 0 2px 0px #8a040b; 
+  }
+
+  /* --- PANTALLA DE CARGA --- */
+  .cargando { 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    height: 100vh; 
+    font-weight: 900; 
+    color: #0f172a; 
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    background: #f0f4f8;
+  }
+
+  @media (max-width: 600px) {
+    .row { grid-template-columns: 1fr; gap: 20px; }
+    .sislexi-card { padding: 30px; }
+  }
+`}</style>
     </div>
   );
 }

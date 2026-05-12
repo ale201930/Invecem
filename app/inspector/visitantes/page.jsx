@@ -72,6 +72,62 @@ export default function RegistroVisitantes() {
     } catch (err) { alert("Error en salida"); }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // --- FUNCIÓN PDF CORREGIDA (FIX AUTO-TABLE) ---
+  const handlePDF = async () => {
+    if (typeof window === "undefined") return;
+
+    try {
+      // Importamos jsPDF y autoTable de forma dinámica
+      const { default: jsPDF } = await import("jspdf");
+      const { default: autoTable } = await import("jspdf-autotable");
+
+      const doc = new jsPDF();
+      const fecha = new Date().toLocaleDateString();
+
+      doc.setFontSize(18);
+      doc.setTextColor(33, 33, 33);
+      doc.text("INVECEM - CONTROL DE ACCESO", 14, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Reporte generado el: ${fecha}`, 14, 28);
+
+      const columns = ["Visitante", "Empresa", "Cédula", "Área", "Entrada", "Salida", "Estado"];
+      const rows = listaFiltrada.map(v => [
+        v.nombre,
+        v.empresa || "Particular",
+        v.cedula,
+        v.area,
+        v.entrada,
+        v.salida,
+        v.estado
+      ]);
+
+      // Usamos la función autoTable importada directamente sobre el documento
+      autoTable(doc, {
+        head: [columns],
+        body: rows,
+        startY: 35,
+        theme: 'grid',
+        headStyles: { fillColor: [211, 47, 47], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 'auto' }
+        }
+      });
+
+      doc.save(`Reporte_INVECEM_${fecha.replace(/\//g, '-')}.pdf`);
+    } catch (error) {
+      console.error("Error al generar PDF:", error);
+      alert("Error al cargar las herramientas de PDF.");
+    }
+  };
+
   if (!mounted) return null;
 
   const listaFiltrada = visitantes.filter(v => 
@@ -80,13 +136,18 @@ export default function RegistroVisitantes() {
 
   return (
     <div className="layout">
-      <header className="top-nav">
+      <header className="top-nav no-print">
         <div className="logo">INVECEM <span className="red-text">Seguridad</span></div>
         <button className="btn-panel" onClick={() => router.push("/inspector")}>← VOLVER AL PANEL</button>
       </header>
 
       <main className="content">
-        <div className="stats-grid">
+        <div className="report-header">
+  <h1 className="report-title">INVECEM - CONTROL DE ACCESO</h1>
+  <p className="report-subtitle">Reporte de Visitantes • Fecha: {new Date().toLocaleDateString()}</p>
+</div>
+
+        <div className="stats-grid no-print">
           <div className="stat-card shadow-relief">
             <span className="label">Hoy</span>
             <span className="value">{stats.hoy}</span>
@@ -102,7 +163,7 @@ export default function RegistroVisitantes() {
         </div>
 
         <div className="main-grid">
-          <section className="form-section shadow-relief">
+          <section className="form-section shadow-relief no-print">
             <h3 className="section-title">Registro de Visitante</h3>
             <form onSubmit={handleIngreso} className="visit-form">
               <div className="form-row">
@@ -142,7 +203,14 @@ export default function RegistroVisitantes() {
           </section>
 
           <section className="table-section shadow-relief">
-            <input type="text" placeholder="🔍 Buscar por nombre o cédula..." className="search-input" onChange={e => setBusqueda(e.target.value)} />
+            <div className="table-controls no-print">
+                <input type="text" placeholder="🔍 Buscar..." className="search-input" onChange={e => setBusqueda(e.target.value)} />
+                <div className="action-buttons">
+                    <button className="btn-action btn-pdf" onClick={handlePDF}>📄 DESCARGAR PDF</button>
+                    <button className="btn-action btn-print" onClick={handlePrint}>🖨️ IMPRIMIR</button>
+                </div>
+            </div>
+            
             <div className="table-wrapper">
               <table className="visit-table">
                 <thead>
@@ -152,7 +220,8 @@ export default function RegistroVisitantes() {
                     <th>ÁREA</th>
                     <th>ENTRADA</th>
                     <th>ESTADO</th>
-                    <th>GESTIÓN</th>
+                    <th className="no-print">GESTIÓN</th>
+                    <th className="only-print">SALIDA</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -163,11 +232,14 @@ export default function RegistroVisitantes() {
                       <td><span className="tag">{v.area}</span></td>
                       <td className="bold">{v.entrada}</td>
                       <td><span className={`badge ${v.estado === "En Planta" ? "in" : "out"}`}>{v.estado}</span></td>
-                      <td>
+                      <td className="no-print">
                         {v.estado === "En Planta" ? 
                           <button className="btn-salida" onClick={() => handleSalida(v.id, v.fechaIngreso)}>Marcar Salida</button> : 
                           <span className="time-out">Salió: {v.salida}</span>
                         }
+                      </td>
+                      <td className="only-print bold">
+                          {v.salida !== "--:--" ? v.salida : "EN PLANTA"}
                       </td>
                     </tr>
                   ))}
@@ -179,50 +251,213 @@ export default function RegistroVisitantes() {
       </main>
 
       <style jsx>{`
-        .layout { background: #f0f2f5; min-height: 100vh; font-family: 'Segoe UI', sans-serif; color: #1a1a1a; }
-        .top-nav { background: #1a1a1a; color: white; padding: 8px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #d32f2f; }
-        .logo { font-weight: 800; font-size: 18px; }
-        .red-text { color: #d32f2f; }
-        .btn-panel { background: #d32f2f; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 800; }
+  /* Fondo General con Patrón INVECEM */
+  .layout { 
+    background-color: #f0f4f8;
+    background-image: radial-gradient(#d1d5db 0.8px, transparent 0.8px);
+    background-size: 24px 24px;
+    min-height: 100vh; 
+    font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+    color: #0f172a;
+    position: relative;
+  }
 
-        .content { padding: 20px; max-width: 1450px; margin: 0 auto; }
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-        .stat-card { background: white; padding: 12px; border-radius: 8px; text-align: center; }
-        .stat-card .label { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; }
-        .stat-card .value { font-size: 24px; font-weight: 900; color: #1a1a1a; display: block; }
-        .border-red { border-left: 5px solid #d32f2f; }
+  .report-header {
+    margin-bottom: 35px;
+    border-left: 6px solid #0f172a;
+    padding-left: 20px;
+  }
+  .report-title {
+    font-size: 38px;
+    font-weight: 900;
+    color: #0f172a;
+    margin: 0;
+    letter-spacing: -2px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  .report-subtitle {
+    font-size: 14px;
+    font-weight: 700;
+    color: #64748b;
+    margin-top: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
 
-        .main-grid { display: grid; grid-template-columns: 460px 1fr; gap: 20px; }
-        .shadow-relief { background: white; border-radius: 8px; padding: 18px; box-shadow: 4px 4px 0px #333; border: 2px solid #333; }
+  /* Barra de Navegación */
+  .top-nav { 
+    background: #0f172a; 
+    color: white; 
+    padding: 12px 25px; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    border-bottom: 4px solid #e30613; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .logo { font-weight: 900; font-size: 20px; letter-spacing: -1px; }
+  .red-text { color: #e30613; }
+  .btn-panel { 
+    background: #e30613; 
+    color: white; 
+    border: none; 
+    padding: 8px 16px; 
+    border-radius: 8px; 
+    cursor: pointer; 
+    font-size: 11px; 
+    font-weight: 800; 
+    text-transform: uppercase;
+    transition: 0.3s;
+  }
+  .btn-panel:hover { background: #b8050f; transform: translateY(-2px); }
 
-        .section-title { margin: 0 0 12px 0; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #eee; padding-bottom: 4px; font-weight: 900; }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .field { margin-bottom: 10px; }
-        .field label { font-size: 9px; font-weight: 900; color: #444; text-transform: uppercase; display: block; margin-bottom: 3px; }
-        input, select { width: 100%; padding: 7px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; font-weight: 600; background: #fafafa; }
-        input:focus { border-color: #d32f2f; outline: none; background: #fff; }
+  .content { padding: 30px; max-width: 1400px; margin: 0 auto; position: relative; z-index: 1; }
 
-        .btn-confirmar { width: 100%; background: #d32f2f; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 900; cursor: pointer; text-transform: uppercase; margin-top: 5px; font-size: 12px; }
-        .btn-confirmar:hover { background: #1a1a1a; }
+  /* Grid de Estadísticas */
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+  .stat-card { 
+    background: rgba(255, 255, 255, 0.8); 
+    backdrop-filter: blur(5px);
+    padding: 20px; 
+    border-radius: 16px; 
+    text-align: center; 
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 4px 6px rgba(15, 23, 42, 0.05);
+  }
+  .stat-card .label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-card .value { font-size: 28px; font-weight: 900; color: #0f172a; display: block; margin-top: 5px; }
 
-        .search-input { width: 100%; max-width: 300px; margin-bottom: 15px; border: 2px solid #333; padding: 5px 10px; font-size: 13px; }
-        .visit-table { width: 100%; border-collapse: collapse; }
-        .visit-table th { text-align: left; font-size: 10px; color: #888; border-bottom: 2px solid #333; padding: 6px; }
-        .visit-table td { padding: 8px 6px; border-bottom: 1px solid #eee; font-size: 12px; }
-        
-        .v-info strong { display: block; color: #1a1a1a; line-height: 1.1; font-size: 13px; }
-        .v-info small { color: #d32f2f; font-weight: 700; font-size: 9px; }
-        .bold { font-weight: 800; }
-        .tag { background: #333; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700; }
+  /* Layout Principal */
+  .main-grid { display: grid; grid-template-columns: 420px 1fr; gap: 25px; }
 
-        .badge { font-size: 9px; font-weight: 900; text-transform: uppercase; padding: 2px 6px; border-radius: 10px; border: 1px solid transparent; }
-        .badge.in { background: #ffebee; color: #d32f2f; border-color: #d32f2f; }
-        .badge.out { color: #888; background: #f0f0f0; }
+  /* Tarjetas Estilo Glassmorphism (Reemplaza shadow-relief) */
+  .shadow-relief { 
+    background: rgba(255, 255, 255, 0.94); 
+    backdrop-filter: blur(10px);
+    border-radius: 24px; 
+    padding: 30px; 
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.12);
+    position: relative;
+    overflow: hidden;
+  }
 
-        .btn-salida { background: #1a1a1a; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 10px; font-weight: 800; cursor: pointer; }
-        .btn-salida:hover { background: #d32f2f; }
-        .time-out { font-size: 10px; color: #666; font-weight: 700; font-style: italic; }
-      `}</style>
+  .section-title { 
+    margin-bottom: 25px; 
+    font-size: 14px; 
+    text-transform: uppercase; 
+    font-weight: 900; 
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::before {
+    content: ""; width: 8px; height: 8px; background: #e30613; border-radius: 2px;
+  }
+
+  /* Formulario e Inputs */
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .field { margin-bottom: 15px; }
+  .field label { font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 6px; display: block; padding-left: 4px; }
+  
+  input, select { 
+    width: 100%; padding: 12px; 
+    border: 2px solid #f1f5f9; 
+    border-radius: 12px; 
+    font-size: 14px; 
+    font-weight: 600; 
+    background: #f8fafc; 
+    transition: all 0.2s ease;
+  }
+  input:focus, select:focus { 
+    border-color: #e30613; 
+    outline: none; 
+    background: white; 
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(227, 6, 19, 0.08);
+  }
+
+  .btn-confirmar { 
+    width: 100%; 
+    background: #e30613; 
+    color: white; 
+    border: none; 
+    padding: 15px; 
+    border-radius: 12px; 
+    font-weight: 800; 
+    cursor: pointer; 
+    text-transform: uppercase; 
+    margin-top: 10px; 
+    font-size: 12px;
+    box-shadow: 0 8px 16px rgba(227, 6, 19, 0.2);
+    transition: 0.3s;
+  }
+  .btn-confirmar:hover { transform: translateY(-3px); box-shadow: 0 12px 20px rgba(227, 6, 19, 0.3); }
+
+  /* Controles de Tabla */
+  .table-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; }
+  .search-input { 
+    flex: 1; max-width: 300px; 
+    background: #f8fafc;
+    border: 2px solid #f1f5f9;
+    padding: 10px 15px; 
+  }
+
+  .btn-action { 
+    padding: 10px 18px; 
+    border-radius: 10px; 
+    font-weight: 800; 
+    font-size: 11px; 
+    text-transform: uppercase; 
+    cursor: pointer;
+    transition: 0.3s;
+  }
+  .btn-pdf { background: #e30613; color: white; border: none; }
+  .btn-print { background: #0f172a; color: white; border: none; }
+  .btn-action:hover { transform: translateY(-2px); opacity: 0.9; }
+
+  /* Tabla de Visitantes */
+  .visit-table { width: 100%; border-collapse: collapse; }
+  .visit-table th { 
+    text-align: left; font-size: 11px; 
+    color: #94a3b8; 
+    padding: 15px 10px; 
+    border-bottom: 2px solid #f1f5f9;
+    text-transform: uppercase;
+  }
+  .visit-table td { padding: 15px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+  
+  .v-info strong { display: block; color: #0f172a; font-size: 14px; }
+  .v-info small { color: #e30613; font-weight: 700; font-size: 10px; text-transform: uppercase; }
+  
+  .tag { background: #0f172a; color: white; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+  
+  .badge { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; }
+  .badge.in { background: #fee2e2; color: #e30613; }
+  .badge.out { background: #f1f5f9; color: #64748b; }
+
+  .btn-salida { 
+    background: #0f172a; color: white; border: none; padding: 6px 12px; 
+    border-radius: 8px; font-size: 10px; font-weight: 800; cursor: pointer; 
+    transition: 0.2s;
+  }
+  .btn-salida:hover { background: #e30613; }
+
+  @media print {
+    .no-print { display: none !important; }
+    .only-print { display: block !important; }
+    .layout { background: white; }
+    .content { padding: 0; }
+    .main-grid { display: block; }
+    .shadow-relief { box-shadow: none; border: 1px solid #eee; padding: 10px; backdrop-filter: none; }
+  }
+
+  @media (max-width: 1000px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+`}</style>
     </div>
   );
 }

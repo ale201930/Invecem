@@ -48,21 +48,33 @@ export default function ReportesGenerales() {
   const ejecutarBusqueda = async () => {
     setLoading(true);
     try {
-      // CORRECCIÓN NOCTURNA: Buscamos desde las 00:00 de hoy hasta las 07:00 del día siguiente
-      // Esto captura a los que entran tarde y salen en la madrugada del día siguiente.
-      const inicio = new Date(fechaBusqueda + "T00:00:00");
-      const fin = new Date(fechaBusqueda + "T23:59:59");
-      const finExtendido = new Date(fin.getTime() + (7 * 60 * 60 * 1000)); 
+      // AJUSTE PARA TURNO NOCTURNO:
+      // Buscamos desde las 12 horas antes del día seleccionado hasta el final del día seleccionado.
+      // Esto permite que aparezcan los registros de entrada de la noche anterior que tienen salida hoy.
+      const fechaElegida = new Date(fechaBusqueda + "T00:00:00");
+      const inicioExtendido = new Date(fechaElegida.getTime() - (12 * 60 * 60 * 1000));
+      const finDelDia = new Date(fechaBusqueda + "T23:59:59");
 
       const q = query(
         collection(db, "asistencias"),
-        where("fechaHora", ">=", Timestamp.fromDate(inicio)),
-        where("fechaHora", "<=", Timestamp.fromDate(finExtendido)),
+        where("fechaHora", ">=", Timestamp.fromDate(inicioExtendido)),
+        where("fechaHora", "<=", Timestamp.fromDate(finDelDia)),
         orderBy("fechaHora", "asc")
       );
 
       const snap = await getDocs(q);
       let data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Filtro de seguridad: Solo mostramos registros que pertenecen al día de hoy,
+      // O registros de ayer cuya salida fue hoy (después de las 00:00).
+      data = data.filter(item => {
+        const fechaDoc = item.fechaHora.toDate().toISOString().split('T')[0];
+        if (fechaDoc === fechaBusqueda) return true;
+        
+        // Si el registro es de "ayer", lo mostramos solo si tiene salida (porque indica que terminó hoy)
+        // O si no tiene salida aún pero es del turno nocturno esperado.
+        return item.salida && item.salida !== "--:--";
+      });
 
       if (filtroEmpresa !== "TODOS") {
         data = data.filter(item => {
@@ -75,7 +87,6 @@ export default function ReportesGenerales() {
         data = data.filter(item => {
           if (!item.entrada) return false;
           const [h] = item.entrada.split(":").map(Number);
-          // Se define nocturno si entra después de las 6 PM (18h) o antes de las 7 AM
           const esNocturno = h >= 18 || h < 7; 
           return filtroTurno === "DIURNO" ? !esNocturno : esNocturno;
         });
@@ -300,7 +311,7 @@ export default function ReportesGenerales() {
           color: white; 
           position: relative;
           border: 1px solid #1e293b;
-          box-shadow: 10px 10px 0px #e30613; /* Sombra relieve roja */
+          box-shadow: 10px 10px 0px #e30613; 
         }
 
         .grid-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
@@ -356,11 +367,10 @@ export default function ReportesGenerales() {
         }
         .btn-search:hover { transform: translateY(2px); box-shadow: 0 2px 0px #8a040b; }
 
-        /* CONTENEDOR DE RESULTADOS */
         .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         
         .stats { font-weight: 800; color: #64748b; font-size: 14px; }
-        .text-turquesa { color: #e30613; } /* Cambiado a rojo para consistencia */
+        .text-turquesa { color: #e30613; }
 
         .btn-pdf { 
           background: #0f172a; 
@@ -409,16 +419,15 @@ export default function ReportesGenerales() {
         .report-table td { padding: 18px 20px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; }
         
         .main-area { font-weight: 900; color: #0f172a; font-size: 12px; text-transform: uppercase; }
-        .sub-cargo { font-size: 11px; color: #e30613; font-weight: 800; text-transform: uppercase; } /* Cargo en rojo */
+        .sub-cargo { font-size: 11px; color: #e30613; font-weight: 800; text-transform: uppercase; }
         
         .ficha-num { font-weight: 900; color: #0f172a; font-family: 'Inter', sans-serif; font-size: 16px; }
         .bold { font-weight: 800; text-transform: uppercase; color: #1e293b; }
         .hora { font-family: monospace; font-weight: 900; color: #0f172a; font-size: 15px; }
 
-        /* BADGES SÓLIDOS */
         .badge { padding: 6px 14px; border-radius: 8px; font-size: 10px; font-weight: 900; color: white; text-transform: uppercase; }
         .bg-red { background: #e30613; }
-        .bg-turquesa { background: #22c55e; } /* Puntual ahora es verde sólido */
+        .bg-turquesa { background: #22c55e; }
 
         .tipo-tag { font-weight: 800; color: #64748b; font-size: 11px; }
 

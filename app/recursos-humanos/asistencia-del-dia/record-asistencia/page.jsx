@@ -57,12 +57,32 @@ export default function RecordFuncionalAsistencia() {
     if (!registro) return { clase: "status-ausente", extra: 0 };
     
     let hExtra = 0;
-    if (registro.salida && registro.horaSalidaProgramada) {
-      const [hS, mS] = registro.salida.split(":").map(Number);
-      const [hP, mP] = registro.horaSalidaProgramada.split(":").map(Number);
-      const diff = (hS * 60 + mS) - (hP * 60 + mP);
+    
+    // Validamos que exista salida y entrada para calcular
+    if (registro.salida && registro.salida !== "--:--" && registro.entrada) {
+      // 1. Identificar el turno por la hora de entrada
+      const horaEntradaNum = parseInt(registro.entrada.split(":")[0]);
+      
+      let horaSalidaOficial = 16; // Diurno por defecto (4 PM)
+      let minutoSalidaOficial = 0;
+
+      // Si entra a partir de las 6 PM (18h) o muy temprano en la madrugada, es nocturno
+      if (horaEntradaNum >= 18 || horaEntradaNum < 5) {
+        horaSalidaOficial = 7; // Salida oficial Nocturno (7 AM)
+      }
+
+      // 2. Limpiar formato de salida y calcular minutos
+      const horaLimpia = registro.salida.replace(/AM|PM/gi, '').trim();
+      const [hS, mS] = horaLimpia.split(":").map(Number);
+
+      const minutosSalidaReal = (hS * 60) + mS;
+      const minutosSalidaOficial = (horaSalidaOficial * 60) + minutoSalidaOficial;
+
+      // 3. Diferencia
+      const diff = minutosSalidaReal - minutosSalidaOficial;
       if (diff > 0) hExtra = Math.floor(diff / 60);
     }
+    
     return { clase: "status-presente", extra: hExtra };
   };
 
@@ -183,13 +203,14 @@ export default function RecordFuncionalAsistencia() {
 
         .btn-export { background: #e30613; color: white; border: none; padding: 12px 25px; border-radius: 12px; font-weight: 800; cursor: pointer; }
         .btn-back { background: #0f172a; color: white; border: none; padding: 12px 25px; border-radius: 12px; font-weight: 800; cursor: pointer; }
+        .search-box { padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1; width: 250px; }
 
         @media print {
           @page { size: landscape; margin: 5mm; }
           .no-print { display: none !important; }
           .main-wrapper { padding: 0; background: white; }
           .glass-container { border: none; }
-          .db-table { font-size: 8px; } /* Achicamos la letra para que quepa el mes */
+          .db-table { font-size: 8px; }
           .dot { width: 7px; height: 7px; }
           .sticky-col { position: static !important; border-right: 1px solid #ddd; }
           -webkit-print-color-adjust: exact;

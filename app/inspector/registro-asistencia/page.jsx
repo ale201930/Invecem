@@ -35,8 +35,6 @@ export default function RegistroAsistencia() {
     const opciones = { day: 'numeric', month: 'long', year: 'numeric' };
     setFechaHoy(new Date().toLocaleDateString('es-ES', opciones).toUpperCase());
 
-    // CAMBIO 1: Quitamos el filtro de "inicioHoy" para que el personal nocturno 
-    // que entró ayer aparezca en la lista del inspector como "Sin Salida".
     const q = query(
       collection(db, "asistencias"),
       orderBy("fechaHora", "desc")
@@ -55,7 +53,6 @@ export default function RegistroAsistencia() {
     };
   }, []);
 
-  // LIMPIAR BASE DE DATOS PARA PRUEBAS
   const handleLimpiarBase = async () => {
     const pin = prompt("MODO DESARROLLADOR: Ingrese PIN para vaciar asistencias de hoy:");
     if (pin === MASTER_PIN) {
@@ -71,7 +68,7 @@ export default function RegistroAsistencia() {
     }
   };
 
-  // PROCESAR REGISTRO AUTOMÁTICO
+  // PROCESAR REGISTRO AUTOMÁTICO (AJUSTADO PARA idAcceso)
   const procesarRegistro = useCallback(async () => {
     const valor = identificador.trim();
     if (!valor || cargando) return;
@@ -80,6 +77,7 @@ export default function RegistroAsistencia() {
     setIdentificador(""); 
 
     try {
+      // 1. BUSCAR EN PERSONAL (Ficha o Cédula)
       const personalRef = collection(db, "personal");
       let q = query(personalRef, where("ficha", "==", valor));
       let snap = await getDocs(q);
@@ -89,16 +87,38 @@ export default function RegistroAsistencia() {
         snap = await getDocs(q);
       }
 
+      let trabajador = null;
+      let procedencia = "INVECEM";
+
       if (!snap.empty) {
-        const trabajador = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        trabajador = { id: snap.docs[0].id, ...snap.docs[0].data() };
+      } else {
+        // 2. BUSCAR EN CONTRATISTAS (Por idAcceso o Cedula según imagen)
+        const contratistasRef = collection(db, "contratistas");
+        let qC = query(contratistasRef, where("idAcceso", "==", valor));
+        let snapC = await getDocs(qC);
+
+        if (snapC.empty) {
+          qC = query(contratistasRef, where("cedula", "==", valor));
+          snapC = await getDocs(qC);
+        }
+
+        if (!snapC.empty) {
+          trabajador = { id: snapC.docs[0].id, ...snapC.docs[0].data() };
+          procedencia = "CONTRATISTA";
+        }
+      }
+
+      if (trabajador) {
         const horaActual = obtenerHora24();
         
-        // CAMBIO 2: La búsqueda del "existe" ahora encontrará al trabajador 
-        // aunque su entrada sea de ayer, siempre y cuando no tenga salida marcada.
-        const existe = asistenciasHoy.find(a => a.ficha === trabajador.ficha && !a.salida);
+        // Búsqueda de registro existente para marcar salida
+        const existe = asistenciasHoy.find(a => 
+          (a.cedula === trabajador.cedula || (trabajador.ficha && a.ficha === trabajador.ficha)) && !a.salida
+        );
 
         if (existe) {
-          // REGISTRAR SALIDA (Funciona para Diurnos y Nocturnos)
+          // REGISTRAR SALIDA
           await updateDoc(doc(db, "asistencias", existe.id), {
             salida: horaActual,
             estado: "FINALIZADO" 
@@ -111,11 +131,11 @@ export default function RegistroAsistencia() {
 
           await addDoc(collection(db, "asistencias"), {
             nombreCompleto: `${trabajador.nombres} ${trabajador.apellidos}`.toUpperCase(),
-            ficha: trabajador.ficha,
+            ficha: trabajador.idAcceso || trabajador.ficha || "S/F",
             cedula: trabajador.cedula,
-            cargo: trabajador.cargo || "OPERARIO",
-            area: trabajador.area || "PLANTA", 
-            tipoPersonal: trabajador.categoria || "INVECEM",
+            cargo: trabajador.nombreContrata || trabajador.cargo || "OPERARIO",
+            area: trabajador.areaTrabajo || trabajador.area || "PLANTA", 
+            tipoPersonal: trabajador.tipoPersonal || procedencia,
             entrada: horaActual,
             salida: null,
             estatus: estatusCalculado, 
@@ -131,7 +151,7 @@ export default function RegistroAsistencia() {
   }, [identificador, cargando, asistenciasHoy]);
 
   useEffect(() => {
-    if (identificador.length >= 5) {
+    if (identificador.length >= 4) { // Bajado a 4 dígitos para soportar IDs cortos de acceso
       const timeoutId = setTimeout(() => procesarRegistro(), 400);
       return () => clearTimeout(timeoutId);
     }

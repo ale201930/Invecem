@@ -13,7 +13,7 @@ import {
   updateDoc,
   setDoc,
   getDoc,
-  or // Importamos 'or' para la nueva lógica
+  or
 } from "firebase/firestore";
 
 export default function AsistenciaDiariaRRHH() {
@@ -71,17 +71,23 @@ export default function AsistenciaDiariaRRHH() {
     setMounted(true);
     setFechaHoyStr(new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase());
     
-    const unsubscribeNomina = onSnapshot(query(collection(db, "personal"), where("tipoPersonal", "in", ["INVECEM", "Estudiante INCES", "Estudiante INCESS", "Pasante"])), (snapshot) => {
+    const unsubscribeNomina = onSnapshot(collection(db, "personal"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setNominaTotalData(data);
-      setAreasDisponibles(Array.from(new Set(data.map(a => a.area || "No asignado"))).sort());
+      
+      // Mantenemos la captura segura en memoria del cliente
+      const dataFiltrada = data.filter(p => 
+        ["INVECEM", "Estudiante INCES", "Estudiante INCESS", "Pasante"].includes(p.tipoPersonal) || 
+        p.estatus === "Reposo Médico" ||
+        p.estatus === "Vacaciones"
+      );
+
+      setNominaTotalData(dataFiltrada);
+      setAreasDisponibles(Array.from(new Set(dataFiltrada.map(a => a.area || "No asignado"))).sort());
     });
 
     const inicioHoy = new Date();
     inicioHoy.setHours(0, 0, 0, 0);
 
-    // CORRECCIÓN AQUÍ: 
-    // Ahora busca registros que sean de hoy O que no tengan salida marcada (para el turno nocturno)
     const qAsistencias = query(
       collection(db, "asistencias"),
       or(
@@ -100,6 +106,7 @@ export default function AsistenciaDiariaRRHH() {
     return () => { unsubscribeNomina(); unsubscribeAsist(); };
   }, []);
 
+  // CORRECCIÓN 1: useEffect de totales adaptado para incluir registros sin tipoPersonal pero con estatus especial
   useEffect(() => {
     const fAsistencias = asistencias.filter(a => {
       if (filtroTipo === "INVECEM") return a.tipoPersonal === "INVECEM";
@@ -107,36 +114,62 @@ export default function AsistenciaDiariaRRHH() {
       if (filtroTipo === "PASANTES") return a.tipoPersonal === "Pasante";
       return true;
     });
+
     const nominaFiltrada = nominaTotalData.filter(p => {
       if (filtroTipo === "INVECEM") return p.tipoPersonal === "INVECEM";
       if (filtroTipo === "INCES") return p.tipoPersonal?.includes("INCES");
       if (filtroTipo === "PASANTES") return p.tipoPersonal === "Pasante";
       return true;
     });
+
     setResumen({
       total: nominaFiltrada.length,
       presentes: fAsistencias.filter(a => !a.salida).length,
-      inasistencias: nominaFiltrada.filter(p => (p.estatus?.includes("Activo") || !p.estatus) && !fAsistencias.some(a => a.ficha === p.ficha)).length,
+      inasistencias: nominaFiltrada.filter(p => (p.estatus?.includes("Activo") || !p.estatus) && p.tipoPersonal && !fAsistencias.some(a => a.ficha === p.ficha)).length,
       vacaciones: nominaFiltrada.filter(p => p.estatus === "Vacaciones").length,
       reposo: nominaFiltrada.filter(p => p.estatus === "Reposo Médico").length
     });
   }, [filtroTipo, asistencias, nominaTotalData]);
 
+  // CORRECCIÓN 2: Lógica de filtrado tolerante a fallos de campos faltantes en estatus especiales
   const obtenerListaFinal = () => {
     let base = nominaTotalData.map(p => {
       const registro = asistencias.find(a => a.ficha === p.ficha);
-      return { ...p, entrada: registro?.entrada || null, salida: registro?.salida || null, asistioHoy: !!registro, alertaSalida: registro?.alertaSalida || null, solicitudSalida: registro?.solicitudSalida || null, regId: registro?.id || null };
+      return { 
+        ...p, 
+        entrada: registro?.entrada || null, 
+        salida: registro?.salida || null, 
+        asistioHoy: !!registro, 
+        alertaSalida: registro?.alertaSalida || null, 
+        solicitudSalida: registro?.solicitudSalida || null, 
+        regId: registro?.id || null,
+        
+        fechaRegreso: registro?.fechaRegreso || p.fechaRegreso || null,
+        
+        fechaFinReposo: registro?.fechaFinReposo || p.fechaFinReposo || 
+                        registro?.fechaHasta || p.fechaHasta || 
+                        registro?.fechaFin || p.fechaFin || 
+                        registro?.fechafinreposo || p.fechafinreposo || 
+                        registro?.hasta || p.hasta || null
+      };
     });
+
     base = base.filter(p => {
       const cumpleTexto = (p.nombres?.toLowerCase() || "").includes(filtro.toLowerCase()) || (p.ficha?.toLowerCase() || "").includes(filtro.toLowerCase());
       const cumpleArea = filtroArea === "TODAS" || (p.area || "No asignado") === filtroArea;
+      
       let cumpleTipo = true;
       if (filtroTipo === "INVECEM") cumpleTipo = p.tipoPersonal === "INVECEM";
       if (filtroTipo === "INCES") cumpleTipo = p.tipoPersonal?.includes("INCES");
       if (filtroTipo === "PASANTES") cumpleTipo = p.tipoPersonal === "Pasante";
+      
+      // Si el filtro de la pestaña superior está en TODOS, dejamos pasar a los que no tienen tipoPersonal
+      if (filtroTipo === "TODOS") cumpleTipo = true;
+
       return cumpleTexto && cumpleArea && cumpleTipo;
     });
-    if (filtroEstadoClic === "PRESENTES") return base.filter(p => p.asistioHoy && !p.salida); // Solo los que están en planta realmente
+
+    if (filtroEstadoClic === "PRESENTES") return base.filter(p => p.asistioHoy && !p.salida); 
     if (filtroEstadoClic === "INASISTENCIAS") return base.filter(p => !p.asistioHoy && (p.estatus?.includes("Activo") || !p.estatus));
     if (filtroEstadoClic === "VACACIONES") return base.filter(p => p.estatus === "Vacaciones");
     if (filtroEstadoClic === "REPOSO") return base.filter(p => p.estatus === "Reposo Médico");
@@ -243,7 +276,31 @@ export default function AsistenciaDiariaRRHH() {
                       <td className="hora-cell">{reg.entrada || "--:--"}</td>
                       <td className="hora-cell">{reg.salida || "--:--"}</td>
                       <td>
-                        <span className={`badge ${est.clase}`}>{est.texto}</span>
+                        <div className="status-cell-wrapper">
+                          <span className={`badge ${est.clase}`}>{est.texto}</span>
+                          
+                          {reg.estatus === "Vacaciones" && reg.fechaRegreso && (
+                            <div className="return-date-text">
+                              Regresa: <span>
+                                {typeof reg.fechaRegreso?.toDate === 'function'
+                                  ? reg.fechaRegreso.toDate().toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'})
+                                  : new Date(reg.fechaRegreso).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'})
+                                }
+                              </span>
+                            </div>
+                          )}
+
+                          {reg.estatus === "Reposo Médico" && reg.fechaFinReposo && (
+                            <div className="return-date-text">
+                              Hasta: <span>
+                                {typeof reg.fechaFinReposo?.toDate === 'function' 
+                                  ? reg.fechaFinReposo.toDate().toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'})
+                                  : new Date(reg.fechaFinReposo).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'})
+                                }
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="no-print">
                         {reg.solicitudSalida === "PENDIENTE" && (
@@ -340,6 +397,10 @@ export default function AsistenciaDiariaRRHH() {
         .reposo-status { background: #f59e0b; color: white; }
         .alerta-blink { background: #e30613; color: white; animation: blink 0.8s infinite; }
         .terminado { background: #0f172a; color: white; }
+
+        .status-cell-wrapper { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+        .return-date-text { font-size: 11px; font-weight: 700; color: #64748b; margin-top: 2px; }
+        .return-date-text span { color: #0f172a; font-weight: 800; }
 
         .btn-autorizar { background: #e30613; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: 900; cursor: pointer; font-size: 10px; }
         .row-alert { background: #fff1f2; }

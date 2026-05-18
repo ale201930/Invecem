@@ -37,6 +37,7 @@ export default function UsuariosRegistrados() {
   const [nuevaClave, setNuevaClave] = useState("");
   const [editandoClave, setEditandoClave] = useState(false);
 
+  // --- CONTROL DE AUSENCIAS (MODAL RESTAURADO) ---
   const [showModal, setShowModal] = useState(false);
   const [tipoSeleccionado, setTipoSeleccionado] = useState("");
   const [usuarioParaEstado, setUsuarioParaEstado] = useState(null);
@@ -49,7 +50,6 @@ export default function UsuariosRegistrados() {
   // --- 1. CORRECCIÓN: NORMALIZACIÓN DE FECHAS (8/5/2026 siempre) ---
   const normalizarFecha = (fechaStr) => {
     if (!fechaStr) return "";
-    // Reemplaza guiones por barras, separa por barra y quita ceros a la izquierda usando parseInt
     return fechaStr.replace(/-/g, '/').split('/').map(num => parseInt(num, 10)).join('/');
   };
 
@@ -59,7 +59,6 @@ export default function UsuariosRegistrados() {
   useEffect(() => {
     setIsClient(true);
     
-    // Generar la fecha de hoy en formato limpio (ej: 8/5/2026)
     const d = new Date();
     const hoyLimpio = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
 
@@ -69,16 +68,14 @@ export default function UsuariosRegistrados() {
       setLoading(false);
     });
 
-    // CORRECCIÓN: Escuchar asistencias y normalizar la fecha del documento antes de comparar
     const qAsistencias = query(collection(db, "asistencias"));
     const unsubscribeAsistencias = onSnapshot(qAsistencias, (snapshot) => {
       const marcadosHoy = [];
       snapshot.docs.forEach(doc => {
         const data = doc.data();
-        const fechaDoc = normalizarFecha(data.fecha); // Normalizamos lo que viene de Firebase
+        const fechaDoc = normalizarFecha(data.fecha); 
         
         if (fechaDoc === hoyLimpio) {
-          // Guardamos cedula y ficha para comparar contra ambos
           if (data.cedula) marcadosHoy.push(limpiarID(data.cedula));
           if (data.ficha) marcadosHoy.push(limpiarID(data.ficha));
         }
@@ -106,7 +103,6 @@ export default function UsuariosRegistrados() {
     const u4 = cedulaUser.slice(-4);
     const u5 = cedulaUser.slice(-5);
 
-    // Verificamos si algún identificador del usuario está en la lista de marcados hoy
     return asistenciasHoy.some(valorMarcado => {
       return (
         (fichaUser && valorMarcado === fichaUser) || 
@@ -230,6 +226,7 @@ export default function UsuariosRegistrados() {
     if (nuevoEstatus === "Vacaciones" || nuevoEstatus === "Reposo Médico") {
       setUsuarioParaEstado(user);
       setTipoSeleccionado(nuevoEstatus);
+      setFechas({ inicio: "", fin: "" }); // Resetear fechas previas
       setShowModal(true);
     } else {
       cambiarEstatusFirebase(user.id, nuevoEstatus, null, null);
@@ -245,6 +242,17 @@ export default function UsuariosRegistrados() {
         fechaRegreso: fin || null
       });
     } catch (error) { console.error(error); }
+  };
+
+  // --- CONFIRMACIÓN DEL MODAL DE AUSENCIAS ---
+  const confirmarAusenciaMódulo = async () => {
+    if (!fechas.inicio || !fechas.fin) {
+      alert("⚠️ Debe rellenar la fecha de inicio y de regreso.");
+      return;
+    }
+    await cambiarEstatusFirebase(usuarioParaEstado.id, tipoSeleccionado, fechas.inicio, fechas.fin);
+    setShowModal(false);
+    setUsuarioParaEstado(null);
   };
 
   const irAEditar = (id) => router.push(`/recursos-humanos/registro-personal?edit=${id}`);
@@ -288,6 +296,61 @@ export default function UsuariosRegistrados() {
 
   return (
     <div className="container">
+      {/* MODAL DE SELECCIÓN DE FECHAS (VACACIONES / REPOSOS) - RECONSTRUIDO AL 100% */}
+      {showModal && usuarioParaEstado && (
+        <div className="modal-overlay">
+          <div className="modal-content shadow-relief" style={{ width: '450px', border: '3px solid #e30613' }}>
+            <h2 className="title" style={{ fontSize: '24px', marginBottom: '10px', textTransform: 'uppercase' }}>
+              Registrar {tipoSeleccionado}
+            </h2>
+            <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '700', marginBottom: '20px' }}>
+              Trabajador: <span style={{ color: '#0f172a' }}>{usuarioParaEstado.nombres} {usuarioParaEstado.apellidos}</span>
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div>
+                <label className="exp-label" style={{ marginBottom: '6px', display: 'block' }}>Fecha de Inicio:</label>
+                <input 
+                  type="date" 
+                  className="search-input" 
+                  style={{ width: '100%', padding: '10px' }} 
+                  value={fechas.inicio}
+                  onChange={(e) => setFechas({ ...fechas, inicio: e.target.value })}
+                />
+              </div>
+              
+              <div>
+                <label className="exp-label" style={{ marginBottom: '6px', display: 'block' }}>Fecha de Retorno / Fin:</label>
+                <input 
+                  type="date" 
+                  className="search-input" 
+                  style={{ width: '100%', padding: '10px' }} 
+                  value={fechas.fin}
+                  onChange={(e) => setFechas({ ...fechas, fin: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '30px', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn-delete" 
+                style={{ background: '#64748b', boxShadow: '0 3px 0px #475569' }} 
+                onClick={() => { setShowModal(false); setUsuarioParaEstado(null); }}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-print" 
+                style={{ padding: '8px 20px' }} 
+                onClick={confirmarAusenciaMódulo}
+              >
+                Confirmar Registro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL EXPEDIENTE */}
       {showExpediente && usuarioExpediente && (
         <div className="modal-overlay">
@@ -425,7 +488,7 @@ export default function UsuariosRegistrados() {
 
       <div className="filters-bar no-print">
         <div className="btn-group">
-          {["TODOS", "INVECEM", "INCES", "PASANTES"].map(f => (
+          ={["TODOS", "INVECEM", "INCES", "PASANTES"].map(f => (
             <button key={f} className={`btn-toggle ${filtroTipo === f ? "active" : ""}`} onClick={() => setFiltroTipo(f)}>{f}</button>
           ))}
         </div>
@@ -490,13 +553,13 @@ export default function UsuariosRegistrados() {
   .header-section { 
     display: flex;
     justify-content: space-between;
-    align-items: center; /* Alineado al centro para que la clave no flote */
+    align-items: center; 
     margin-bottom: 30px; 
     border-left: 8px solid #e30613; 
     padding-left: 20px; 
   }
 
-  /* --- CAJA DE SEGURIDAD / CLAVE MAESTRA (MÁS BONITA) --- */
+  /* --- CAJA DE SEGURIDAD / CLAVE MAESTRA --- */
   .seguridad-box { 
     background: white; 
     padding: 15px; 
@@ -531,7 +594,7 @@ export default function UsuariosRegistrados() {
     box-shadow: 0 4px 6px rgba(15, 23, 42, 0.2);
   }
 
-  /* --- BARRA DE FILTROS Y BOTONES PRINCIPALES (CORREGIDO) --- */
+  /* --- BARRA DE FILTROS Y BOTONES PRINCIPALES --- */
   .filters-bar { 
     display: flex; 
     gap: 15px; 
@@ -543,7 +606,7 @@ export default function UsuariosRegistrados() {
     border: 1px solid #e2e8f0; 
   }
 
-  /* BOTONES DE IMPRIMIR Y PDF (ESTILO ROJO INVECEM) */
+  /* BOTONES DE IMPRIMIR Y PDF */
   .btn-print, .btn-pdf { 
     background: #e30613; 
     color: white; 
@@ -557,7 +620,7 @@ export default function UsuariosRegistrados() {
     box-shadow: 0 4px 0px #b8050f;
     white-space: nowrap;
   }
-  .btn-pdf { background: #0f172a; box-shadow: 0 4px 0px #000; } /* El PDF en negro para diferenciarlo */
+  .btn-pdf { background: #0f172a; box-shadow: 0 4px 0px #000; } 
 
   .btn-print:hover, .btn-pdf:hover { 
     transform: translateY(2px); 
@@ -624,7 +687,7 @@ export default function UsuariosRegistrados() {
     background: white;
   }
 
-  /* --- BOTONES DE ACCIÓN EN FILA (ARREGLADOS Y BONITOS) --- */
+  /* --- BOTONES DE ACCIÓN EN FILA --- */
   .actions-cell { display: flex; gap: 8px; align-items: center; }
   
   .btn-historial { 
@@ -640,7 +703,7 @@ export default function UsuariosRegistrados() {
   }
 
   .btn-edit { 
-    background: #3b82f6; /* Azul brillante para editar */
+    background: #3b82f6; 
     color: white; 
     border: none; 
     padding: 8px 14px; 
@@ -668,7 +731,7 @@ export default function UsuariosRegistrados() {
     box-shadow: 0 1px 0px rgba(0,0,0,0.5);
   }
 
-  /* --- MODAL --- */
+  /* --- MODAL GENERAL --- */
   .modal-overlay { 
     position: fixed; 
     top: 0; left: 0; width: 100%; height: 100%; 
@@ -683,6 +746,8 @@ export default function UsuariosRegistrados() {
     border-radius: 24px; 
     border: 2px solid #e30613;
   }
+  .shadow-relief { box-shadow: 10px 10px 0px #0f172a; }
+  .exp-label { font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase; }
 
   @media print { 
     .no-print { display: none !important; } 

@@ -49,36 +49,62 @@ export default function RecordFuncionalAsistencia() {
   };
 
   const obtenerDatosReales = (ficha, dia, mes, anio) => {
+    // Buscamos el registro que se INICIÓ en este día específico
     const registro = asistencias.find(a => {
       const fA = a.fechaHora?.toDate();
       return fA && fA.getDate() === dia && fA.getMonth() === mes && fA.getFullYear() === anio && a.ficha === ficha;
     });
 
-    if (!registro) return { clase: "status-ausente", extra: 0 };
+    // CORRECCIÓN 1: Si no hay registro de inicio hoy, verificamos si viene trabajando del turno nocturno de ayer
+    if (!registro) {
+      const fechaActualEval = new Date(anio, mes, dia);
+      fechaActualEval.setDate(fechaActualEval.getDate() - 1);
+      const ayerDia = fechaActualEval.getDate();
+      const ayerMes = fechaActualEval.getMonth();
+      const ayerAnio = fechaActualEval.getFullYear();
+
+      const registroAyer = asistencias.find(a => {
+        const fA = a.fechaHora?.toDate();
+        return fA && fA.getDate() === ayerDia && fA.getMonth() === ayerMes && fA.getFullYear() === ayerAnio && a.ficha === ficha;
+      });
+
+      if (registroAyer && registroAyer.entrada) {
+        const horaEntradaNum = parseInt(registroAyer.entrada.split(":")[0]);
+        // Si el registro de ayer fue nocturno, hoy sigue presente completando su jornada
+        if (horaEntradaNum >= 18 || horaEntradaNum < 5) {
+          return { clase: "status-presente", extra: 0 };
+        }
+      }
+
+      return { clase: "status-ausente", extra: 0 };
+    }
     
     let hExtra = 0;
     
-    // Validamos que exista salida y entrada para calcular
+    // CORRECCIÓN 2: Lógica de cálculo matemático exacto para horas extras acumuladas sin borrarse
     if (registro.salida && registro.salida !== "--:--" && registro.entrada) {
-      // 1. Identificar el turno por la hora de entrada
       const horaEntradaNum = parseInt(registro.entrada.split(":")[0]);
       
       let horaSalidaOficial = 16; // Diurno por defecto (4 PM)
       let minutoSalidaOficial = 0;
+      let esNocturno = false;
 
-      // Si entra a partir de las 6 PM (18h) o muy temprano en la madrugada, es nocturno
       if (horaEntradaNum >= 18 || horaEntradaNum < 5) {
         horaSalidaOficial = 7; // Salida oficial Nocturno (7 AM)
+        esNocturno = true;
       }
 
-      // 2. Limpiar formato de salida y calcular minutos
       const horaLimpia = registro.salida.replace(/AM|PM/gi, '').trim();
-      const [hS, mS] = horaLimpia.split(":").map(Number);
+      let [hS, mS] = horaLimpia.split(":").map(Number);
 
-      const minutosSalidaReal = (hS * 60) + mS;
+      let minutosSalidaReal = (hS * 60) + mS;
       const minutosSalidaOficial = (horaSalidaOficial * 60) + minutoSalidaOficial;
 
-      // 3. Diferencia
+      // Si es turno nocturno y la salida se registró al día siguiente (en la mañana, ej: hS < 18)
+      if (esNocturno && hS < 18) {
+        minutosSalidaReal += 1440; // Añadimos las 24 horas transcurridas en minutos para la resta exacta
+      }
+
       const diff = minutosSalidaReal - minutosSalidaOficial;
       if (diff > 0) hExtra = Math.floor(diff / 60);
     }

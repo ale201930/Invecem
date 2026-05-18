@@ -35,8 +35,16 @@ export default function RegistroAsistencia() {
     const opciones = { day: 'numeric', month: 'long', year: 'numeric' };
     setFechaHoy(new Date().toLocaleDateString('es-ES', opciones).toUpperCase());
 
+    // CORRECCIÓN DE FILTRO TEMPORAL:
+    // Calculamos el inicio del día de ayer (00:00 AM) para evitar basura del pasado, 
+    // pero manteniendo el margen necesario para rescatar el turno nocturno que entró anoche.
+    const limiteAyer = new Date();
+    limiteAyer.setDate(limiteAyer.getDate() - 1);
+    limiteAyer.setHours(0, 0, 0, 0);
+
     const q = query(
       collection(db, "asistencias"),
+      where("fechaHora", ">=", limiteAyer),
       orderBy("fechaHora", "desc")
     );
 
